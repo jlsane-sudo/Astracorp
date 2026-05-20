@@ -1,0 +1,17 @@
+cosas a reparar 
+
+ 
+🚀 SIGUIENTE PASO (muy importante)
+
+
+👉 Supabase (multiplayer real)
+rpc_attack_territory
+rpc_collect_company
+rpc_apply_tax
+tabla territory_control
+tabla occupation_taxes
+
+
+👉 la versión ya conectada a Supabase (nivel PRO)
+con SQL + RPC + seguridad (para que nadie haga trampas)
+

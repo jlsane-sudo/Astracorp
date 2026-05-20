@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Solar panel">
+  <defs><linearGradient id="panel" x1="0" x2="1"><stop offset="0" stop-color="#082f49"/><stop offset="1" stop-color="#312e81"/></linearGradient><linearGradient id="sun" x1="0" x2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+  <rect width="512" height="512" rx="96" fill="#08111f"/>
+  <circle cx="256" cy="100" r="48" fill="url(#sun)" opacity=".9"/>
+  <path d="M248 182h20v178h-20Z" fill="#64748b"/>
+  <path d="M80 232h170v96H80zM262 232h170v96H262z" fill="url(#panel)" stroke="#67e8f9" stroke-width="6"/>
+  <g stroke="#93c5fd" opacity=".5"><path d="M112 232v96M146 232v96M180 232v96M214 232v96M294 232v96M328 232v96M362 232v96M396 232v96M80 264h352M80 296h352"/></g>
+  <path d="M170 394h172l44 50H126Z" fill="#111827" stroke="#a855f7" stroke-width="6"/>
+</svg>

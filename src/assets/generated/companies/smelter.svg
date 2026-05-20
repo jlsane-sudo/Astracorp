@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Smelter">
+  <rect width="512" height="512" rx="96" fill="#111017"/>
+  <path d="M170 136h172l32 268H138Z" fill="#1f2937" stroke="#fb923c" stroke-width="7"/>
+  <path d="M206 104h100v76H206Z" fill="#374151"/>
+  <path d="M188 286h136c-8 82-128 82-136 0Z" fill="#f97316"/>
+  <path d="M204 286h104c-6 46-98 46-104 0Z" fill="#fde047" opacity=".85"/>
+  <path d="M350 266c46 18 64 52 54 102" stroke="#f97316" stroke-width="18" stroke-linecap="round"/>
+  <path d="M194 430h124" stroke="#94a3b8" stroke-width="28" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Dew collector">
+  <defs><linearGradient id="m" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#1e293b"/><stop offset="1" stop-color="#020617"/></linearGradient><linearGradient id="n" x1="0" x2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs>
+  <rect width="512" height="512" rx="96" fill="#07111f"/>
+  <ellipse cx="256" cy="392" rx="170" ry="52" fill="#020617"/>
+  <path d="M128 372h256l-42 70H170Z" fill="url(#m)" stroke="#67e8f9" stroke-width="6"/>
+  <rect x="218" y="112" width="76" height="250" rx="36" fill="url(#m)" stroke="#67e8f9" stroke-width="6"/>
+  <path d="M256 78 113 168l36 48 107-66 107 66 36-48Z" fill="#172554" stroke="#a855f7" stroke-width="6"/>
+  <path d="M176 220c-44 30-64 72-62 126M336 220c44 30 64 72 62 126" fill="none" stroke="#475569" stroke-width="22" stroke-linecap="round"/>
+  <path d="M256 142v190" stroke="url(#n)" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="256" cy="350" r="38" fill="#22d3ee" opacity=".8"/>
+</svg>

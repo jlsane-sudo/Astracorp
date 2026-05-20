@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="sphere"><circle cx="256" cy="256" r="196"/></clipPath>
+    <radialGradient id="desert" cx="34%" cy="25%" r="78%"><stop offset="0" stop-color="#fff4bd"/><stop offset=".25" stop-color="#ffd36a"/><stop offset=".64" stop-color="#9f6b09"/><stop offset="1" stop-color="#241304"/></radialGradient>
+    <linearGradient id="shade" x1="18%" y1="10%" x2="90%" y2="90%"><stop offset=".42" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#020617" stop-opacity=".68"/></linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <circle cx="256" cy="256" r="214" fill="#fbbf24" opacity=".2" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="196" fill="url(#desert)"/>
+  <g clip-path="url(#sphere)">
+    <g>
+      <animateTransform attributeName="transform" type="translate" from="78 0" to="-78 0" dur="42s" repeatCount="indefinite"/>
+      <path d="M-42 194c78-44 146-48 226-18 82 31 139 34 232 0 66-24 118-18 178 16v58c-66-32-121-35-189-10-91 34-173 31-252-3-70-31-120-25-195 23z" fill="#3f2606" opacity=".36"/>
+      <path d="M-30 317c78-30 136-28 203 2 77 34 144 40 229 10 70-24 126-20 188 11v56c-73-22-124-17-190 11-89 38-172 26-242-6-64-29-121-24-188 10z" fill="#ffe08a" opacity=".25"/>
+      <path d="M112 226h22v70h-22zm36-32h30v102h-30zm48 20h24v82h-24zm40-50h34v132h-34zm52 33h26v99h-26zm42-20h30v119h-30z" fill="#1f1304" opacity=".52"/>
+      <path d="M118 226h12m37-32h18m20 20h12m41-50h20m41 33h16m20-20h16" stroke="#fef3c7" stroke-width="4" stroke-linecap="round" opacity=".62"/>
+      <path d="M64 274c82-20 139-19 214 3 70 20 132 19 205-2" fill="none" stroke="#fde68a" stroke-width="7" opacity=".32"/>
+    </g>
+  </g>
+  <circle cx="256" cy="256" r="196" fill="url(#shade)"/>
+  <circle cx="176" cy="146" r="35" fill="#fff" opacity=".17"/>
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#fde68a" stroke-opacity=".18" stroke-width="3"/>
+</svg>

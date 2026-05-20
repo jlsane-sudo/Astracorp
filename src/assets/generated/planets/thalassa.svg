@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="sphere"><circle cx="256" cy="256" r="196"/></clipPath>
+    <radialGradient id="sea" cx="34%" cy="24%" r="78%"><stop offset="0" stop-color="#ecfeff"/><stop offset=".26" stop-color="#22d3ee"/><stop offset=".64" stop-color="#0e7490"/><stop offset="1" stop-color="#05242e"/></radialGradient>
+    <linearGradient id="shade" x1="18%" y1="10%" x2="90%" y2="90%"><stop offset=".42" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#020617" stop-opacity=".64"/></linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <circle cx="256" cy="256" r="214" fill="#22d3ee" opacity=".26" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="196" fill="url(#sea)"/>
+  <g clip-path="url(#sphere)">
+    <g>
+      <animateTransform attributeName="transform" type="translate" from="-80 0" to="80 0" dur="36s" repeatCount="indefinite"/>
+      <path d="M-46 195c74 28 139 26 209-5 78-34 150-36 225-4 60 26 117 29 198 5v66c-90 22-155 14-221-15-64-28-122-24-194 8-75 34-142 29-217-3z" fill="#cffafe" opacity=".36"/>
+      <path d="M-40 313c74-22 135-16 199 17 72 37 143 39 220 4 67-30 130-29 207-1v62c-84-24-142-20-211 12-77 35-164 28-235-8-55-28-108-31-180-9z" fill="#083344" opacity=".3"/>
+      <path d="M52 242c60-29 111-28 154 0s95 29 154 0 106-29 146-3" fill="none" stroke="#ecfeff" stroke-width="12" opacity=".5"/>
+      <path d="M52 308c60-29 111-28 154 0s95 29 154 0 106-29 146-3" fill="none" stroke="#083344" stroke-width="13" opacity=".42"/>
+      <circle cx="335" cy="218" r="18" fill="#ecfeff" opacity=".34"/><circle cx="168" cy="344" r="13" fill="#a5f3fc" opacity=".42"/>
+    </g>
+  </g>
+  <circle cx="256" cy="256" r="196" fill="url(#shade)"/>
+  <circle cx="178" cy="149" r="38" fill="#fff" opacity=".19"/>
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#a5f3fc" stroke-opacity=".2" stroke-width="3"/>
+</svg>

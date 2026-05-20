@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="AstraCorp operator">
+  <rect width="512" height="512" rx="96" fill="#07111f"/>
+  <circle cx="256" cy="190" r="82" fill="#1f2937"/>
+  <path d="M150 430c18-88 64-132 106-132s88 44 106 132Z" fill="#111827" stroke="#67e8f9" stroke-width="7"/>
+  <path d="M172 206c22-82 56-126 84-126s62 44 84 126c-54-22-114-22-168 0Z" fill="#312e81" stroke="#a855f7" stroke-width="7"/>
+  <rect x="182" y="176" width="148" height="40" rx="20" fill="#020617" stroke="#22d3ee" stroke-width="6"/>
+  <path d="M196 196h120" stroke="#67e8f9" stroke-width="8" stroke-linecap="round"/>
+  <path d="M210 300h92" stroke="#a855f7" stroke-width="12" stroke-linecap="round"/>
+</svg>

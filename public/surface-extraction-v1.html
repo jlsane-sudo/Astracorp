@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TERRA CORE - Extraccion Superficial</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@200;400;700;900&family=Rajdhani:wght@400;600;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-0: #05070c;
+      --bg-1: #0a1220;
+      --bg-2: #101927;
+      --steel: #93a7b8;
+      --soft: rgba(147, 167, 184, 0.7);
+      --orange: #ff6a00;
+      --orange-2: #ff9d2e;
+      --ok: #00ffc8;
+      --line: rgba(255, 106, 0, 0.2);
+      --panel: rgba(9, 16, 26, 0.78);
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(255, 106, 0, 0.12), transparent 28%),
+        radial-gradient(circle at 80% 10%, rgba(0, 255, 200, 0.08), transparent 24%),
+        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 60%, #03050a 100%);
+      color: var(--steel);
+      font-family: 'Rajdhani', sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+
+    .shell {
+      width: min(100%, 920px);
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(8, 12, 18, 0.94));
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .header {
+      display: grid;
+      gap: 4px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .header-sub {
+      color: rgba(255, 157, 46, 0.65);
+      font-size: 11px;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+    }
+
+    .header-title {
+      font-family: 'Exo 2', sans-serif;
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: var(--orange);
+      text-shadow: 0 0 18px rgba(255, 106, 0, 0.2);
+    }
+
+    .stage {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(4, 7, 12, 0.92)),
+        radial-gradient(circle at 50% 0%, rgba(255, 157, 46, 0.06), transparent 40%);
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: transparent;
+    }
+
+    .scanline {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.02) 0px,
+          rgba(255, 255, 255, 0.02) 1px,
+          transparent 1px,
+          transparent 4px
+        );
+      mix-blend-mode: soft-light;
+      opacity: 0.24;
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display: grid;
+      gap: 4px;
+      min-height: 68px;
+    }
+
+    .panel-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--soft);
+    }
+
+    .panel-value {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: #f3f5f7;
+    }
+
+    .panel-sub {
+      font-size: 12px;
+      color: var(--steel);
+    }
+
+    .progress-wrap {
+      display: grid;
+      gap: 8px;
+    }
+
+    .progress-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--soft);
+    }
+
+    .bar {
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      background: #111825;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--orange) 0%, var(--orange-2) 65%, #ffd47b 100%);
+      box-shadow: 0 0 18px rgba(255, 106, 0, 0.28);
+      transition: width 0.18s linear;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button {
+      padding: 12px 28px;
+      border-radius: 999px;
+      border: 2px solid var(--orange);
+      background: transparent;
+      color: var(--orange);
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      cursor: pointer;
+      transition: 0.2s ease;
+      font-family: inherit;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(255, 106, 0, 0.12);
+    }
+
+    button.on {
+      color: var(--ok);
+      border-color: var(--ok);
+      box-shadow: 0 0 18px rgba(0, 255, 200, 0.12);
+    }
+
+    .hint {
+      text-align: center;
+      font-size: 12px;
+      color: var(--soft);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 10px;
+      }
+
+      .shell {
+        padding: 12px;
+      }
+
+      .hud {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="header">
+      <div class="header-sub">Unidad minera</div>
+      <div class="header-title">TERRA CORE</div>
+    </div>
+
+    <div class="stage">
+      <canvas id="c" width="860" height="480"></canvas>
+      <div class="scanline"></div>
+    </div>
+
+    <div class="hud">
+      <div class="panel">
+        <div class="panel-label">Extraccion</div>
+        <div class="panel-value" id="rate">0.0</div>
+        <div class="panel-sub">t/h superficiales</div>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Carga tolva</div>
+        <div class="panel-value" id="load">0%</div>
+        <div class="panel-sub">progreso del ciclo</div>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Estado</div>
+        <div class="panel-value" id="state">Standby</div>
+        <div class="panel-sub">unidad superficial</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-top">
+        <span>Transferencia de carga</span>
+        <span id="progressText">0%</span>
+      </div>
+      <div class="bar">
+        <div class="bar-fill" id="fill"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btn" onclick="toggleMachine()">ACTIVAR</button>
+    </div>
+
+    <div class="hint">
+      Preview HTML independiente. Puedes abrirlo tal cual en navegador o usarlo desde
+      <code>/surface-extraction-v1.html</code> dentro del proyecto.
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d");
+
+    const rateEl = document.getElementById("rate");
+    const loadEl = document.getElementById("load");
+    const stateEl = document.getElementById("state");
+    const fillEl = document.getElementById("fill");
+    const progressTextEl = document.getElementById("progressText");
+    const btnEl = document.getElementById("btn");
+
+    let running = false;
+    let progress = 0;
+    let time = 0;
+    let dust = [];
+    let sparks = [];
+
+    function toggleMachine() {
+      running = !running;
+      btnEl.classList.toggle("on", running);
+      btnEl.textContent = running ? "ACTIVO" : "ACTIVAR";
+      stateEl.textContent = running ? "Activo" : "Standby";
+    }
+
+    function spawnDust(x, y) {
+      dust.push({
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 2.2,
+        vy: -Math.random() * 1.8 - 0.2,
+        life: 1,
+        size: Math.random() * 3 + 2,
+      });
+    }
+
+    function spawnSpark(x, y) {
+      sparks.push({
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 3.6,
+        vy: -Math.random() * 3.2,
+        life: 1,
+        size: Math.random() * 2 + 1,
+      });
+    }
+
+    function drawBackground() {
+      const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      grd.addColorStop(0, "#08111b");
+      grd.addColorStop(0.55, "#0a0f16");
+      grd.addColorStop(1, "#12161d");
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "rgba(255,255,255,0.04)";
+      for (let i = 0; i < 70; i += 1) {
+        const x = (i * 97) % canvas.width;
+        const y = (i * 41) % 180;
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+
+    function drawGround(baseY) {
+      ctx.fillStyle = "#1a2028";
+      ctx.fillRect(0, baseY, canvas.width, canvas.height - baseY);
+
+      ctx.fillStyle = "rgba(255,255,255,0.05)";
+      for (let i = 0; i < canvas.width; i += 28) {
+        ctx.fillRect(i, baseY + ((i / 28) % 2) * 3, 16, 2);
+      }
+    }
+
+    function drawMachine(baseX, baseY, drillY) {
+      ctx.fillStyle = "#243242";
+      ctx.fillRect(baseX - 58, baseY - 112, 116, 26);
+      ctx.fillRect(baseX - 28, baseY - 182, 56, 74);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(baseX - 58, baseY - 112, 116, 26);
+      ctx.strokeRect(baseX - 28, baseY - 182, 56, 74);
+
+      ctx.fillStyle = running ? "#ff6a00" : "#5f6c78";
+      ctx.beginPath();
+      ctx.arc(baseX, drillY - 8, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#13202d";
+      ctx.fillRect(baseX - 8, drillY - 8, 16, 88);
+
+      ctx.fillStyle = "#ffb347";
+      for (let i = 0; i < 8; i += 1) {
+        const angle = time * 10 + i * (Math.PI * 2 / 8);
+        const px = baseX + Math.cos(angle) * 15;
+        const py = drillY - 8 + Math.sin(angle) * 15;
+        ctx.fillRect(px - 2, py - 2, 4, 4);
+      }
+
+      ctx.fillStyle = "#32465a";
+      ctx.fillRect(baseX - 110, baseY - 70, 50, 16);
+      ctx.fillRect(baseX + 60, baseY - 70, 50, 16);
+      ctx.fillRect(baseX - 118, baseY - 54, 12, 26);
+      ctx.fillRect(baseX + 106, baseY - 54, 12, 26);
+    }
+
+    function drawHopper(baseX, baseY) {
+      ctx.strokeStyle = "rgba(255, 106, 0, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(baseX + 188, baseY - 46, 126, 42);
+
+      ctx.fillStyle = "rgba(255,157,46,0.2)";
+      ctx.fillRect(baseX + 188, baseY - 46, 126 * (progress / 100), 42);
+    }
+
+    function updateParticles() {
+      dust = dust.filter((p) => p.life > 0);
+      dust.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.018;
+        ctx.fillStyle = `rgba(191, 149, 104, ${p.life})`;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      });
+
+      sparks = sparks.filter((p) => p.life > 0);
+      sparks.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.045;
+        ctx.fillStyle = `rgba(255, 130, 30, ${p.life})`;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      });
+    }
+
+    function drawFrame() {
+      requestAnimationFrame(drawFrame);
+
+      drawBackground();
+      time += 0.05;
+
+      const baseX = canvas.width * 0.36;
+      const baseY = 340;
+      const drillBounce = running ? Math.sin(time * 8) * 10 : 0;
+      const drillY = baseY - 30 + drillBounce;
+
+      drawGround(baseY);
+      drawMachine(baseX, baseY, drillY);
+      drawHopper(baseX, baseY);
+
+      if (running) {
+        if (Math.random() > 0.55) spawnDust(baseX + (Math.random() - 0.5) * 18, drillY + 30);
+        if (Math.random() > 0.78) spawnSpark(baseX + (Math.random() - 0.5) * 10, drillY + 28);
+
+        progress = Math.min(100, progress + Math.random() * 0.45 + 0.12);
+      }
+
+      updateParticles();
+
+      fillEl.style.width = `${progress}%`;
+      progressTextEl.textContent = `${Math.floor(progress)}%`;
+      loadEl.textContent = `${Math.floor(progress)}%`;
+      rateEl.textContent = running ? (progress * 0.23 + 1.8).toFixed(1) : "0.0";
+
+      if (progress >= 100 && running) {
+        progress = 0;
+      }
+    }
+
+    stateEl.textContent = "Standby";
+    drawFrame();
+  </script>
+</body>
+</html>

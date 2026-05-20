@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Market alert">
+  <rect width="512" height="512" rx="96" fill="#0b1020"/>
+  <path d="M96 354h320" stroke="#475569" stroke-width="22" stroke-linecap="round"/>
+  <path d="M132 320 208 230l70 46 102-124" fill="none" stroke="#22d3ee" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M336 120h76v76" fill="none" stroke="#a855f7" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="166" cy="388" r="20" fill="#fde047"/><circle cx="256" cy="388" r="20" fill="#22d3ee"/><circle cx="346" cy="388" r="20" fill="#a855f7"/>
+</svg>

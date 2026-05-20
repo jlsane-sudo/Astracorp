@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Water purifier">
+  <rect width="512" height="512" rx="96" fill="#07111f"/>
+  <rect x="74" y="134" width="112" height="240" rx="34" fill="#0f172a" stroke="#38bdf8" stroke-width="7"/>
+  <rect x="326" y="134" width="112" height="240" rx="34" fill="#0f172a" stroke="#a7f3d0" stroke-width="7"/>
+  <path d="M186 224h140M186 294h140" stroke="#64748b" stroke-width="24" stroke-linecap="round"/>
+  <rect x="214" y="172" width="84" height="178" rx="28" fill="#111827" stroke="#a855f7" stroke-width="7"/>
+  <path d="M94 286h72v62H94Z" fill="#0891b2" opacity=".7"/>
+  <path d="M346 250h72v98h-72Z" fill="#2dd4bf" opacity=".7"/>
+  <circle cx="256" cy="260" r="36" fill="#67e8f9" opacity=".72"/>
+</svg>

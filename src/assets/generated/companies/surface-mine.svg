@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Surface mine">
+  <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#f59e0b"/><stop offset=".55" stop-color="#64748b"/><stop offset="1" stop-color="#111827"/></linearGradient></defs>
+  <rect width="512" height="512" rx="96" fill="#0d111b"/>
+  <path d="M54 392 142 188l80 112 82-156 154 248Z" fill="url(#g)" opacity=".9"/>
+  <path d="M250 112h34l-16 230h-34Z" fill="#020617" stroke="#67e8f9" stroke-width="5"/>
+  <path d="M198 164h128M210 218h104" stroke="#a855f7" stroke-width="10" stroke-linecap="round"/>
+  <path d="M112 398h288" stroke="#f59e0b" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="196" cy="398" r="16" fill="#fde68a"/><circle cx="272" cy="398" r="16" fill="#fde68a"/><circle cx="348" cy="398" r="16" fill="#fde68a"/>
+</svg>
