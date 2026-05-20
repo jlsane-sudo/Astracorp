@@ -1428,6 +1428,75 @@ export default function App() {
     };
   }, [authReady, isRemoteLoaded, session, sidebarCollapsed]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleTopbarPointerGuard = (event) => {
+      const topbar = topbarRef.current;
+      if (!topbar || event.defaultPrevented) return;
+      const tabsBar = topbar.querySelector('.pw-tabs-bar');
+
+      const rect = topbar.getBoundingClientRect();
+      const tabsRect = tabsBar?.getBoundingClientRect();
+      const x = Number(event.clientX ?? 0);
+      const y = Number(event.clientY ?? 0);
+      const insideTopbar =
+        x >= rect.left &&
+        x <= rect.right &&
+        y >= rect.top &&
+        y <= rect.bottom;
+      const insideTabsBar =
+        tabsRect &&
+        x >= tabsRect.left &&
+        x <= tabsRect.right &&
+        y >= tabsRect.top &&
+        y <= tabsRect.bottom;
+
+      if (!insideTopbar) return;
+
+      const directButton = event.target?.closest?.('.pw-topbar button');
+      if (directButton && (!insideTabsBar || directButton.closest('.pw-tabs-bar'))) return;
+
+      const blockers = document
+        .elementsFromPoint(x, y)
+        .filter((element) => element !== document.documentElement && element !== document.body)
+        .filter((element) => {
+          if (!topbar.contains(element)) return true;
+          return insideTabsBar && !element.closest?.('.pw-tabs-bar');
+        });
+      const previousPointerEvents = blockers.map((element) => [
+        element,
+        element.style.pointerEvents,
+      ]);
+
+      blockers.forEach((element) => {
+        element.style.pointerEvents = 'none';
+      });
+
+      const target = document.elementFromPoint(x, y);
+      const topbarButton = insideTabsBar
+        ? target?.closest?.('.pw-tabs-bar button')
+        : target?.closest?.('.pw-topbar button');
+
+      previousPointerEvents.forEach(([element, pointerEvents]) => {
+        element.style.pointerEvents = pointerEvents;
+      });
+
+      if (!topbarButton) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      topbarButton.click();
+    };
+
+    document.addEventListener('pointerdown', handleTopbarPointerGuard, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handleTopbarPointerGuard, true);
+    };
+  }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSession(null);
