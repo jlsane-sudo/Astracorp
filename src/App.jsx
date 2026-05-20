@@ -1830,6 +1830,7 @@ export default function App() {
                 <ResearchView
                   player={save.player}
                   research={save.research}
+                  hq={save.hq}
                   researchProjects={save.researchProjects}
                   companies={save.companies}
                   inventory={save.inventory}
