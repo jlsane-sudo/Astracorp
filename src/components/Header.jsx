@@ -2,7 +2,7 @@ import React from "react";
 import { theme } from "../theme";
 import { getPlanetById } from "../data/planets";
 import { getXpNeededForLevel } from "../utils/xp";
-import { AD_POOL_REVENUE_PER_VIEW } from "../hooks/engine/gameConstants";
+import { getVisibleAdIncomeMetrics } from "../utils/adIncome";
 
 export function Header({
   player,
@@ -31,26 +31,12 @@ export function Header({
   const xp = Number(player?.xp ?? 0);
   const pct = Number(player?.pct ?? 1);
   const inventoryItems = getHeaderInventoryItems(inventory);
-  const adsToday = Math.max(0, Number(rewardAdsToday ?? 0), Number(adsViewedToday ?? 0));
-  const todayPool = Math.max(0, Number(adIncomeSummary?.today_pool ?? 0));
-  const yesterdayPool = Math.max(0, Number(adIncomeSummary?.yesterday_pool ?? 0));
-  const activePlayers = Math.max(1, Number(adIncomeSummary?.today_active_players ?? 1));
-  const localTodayEstimate = (adsToday * AD_POOL_REVENUE_PER_VIEW / activePlayers) * (pct / 100);
-  const adTodayAmount = Math.max(0, Number(adIncomeSummary?.today_estimate ?? 0), localTodayEstimate);
-  const yesterdayClosed = adIncomeSummary?.yesterday_closed !== false;
-  const yesterdayAmount = yesterdayClosed
-    ? Number(adIncomeSummary?.yesterday_payout ?? 0)
-    : Math.max(
-        Number(adIncomeSummary?.yesterday_payout ?? 0),
-        Number(adIncomeSummary?.yesterday_estimate ?? 0)
-      );
-  const totalEarned = Math.max(0, Number(adIncomeSummary?.total_payout ?? 0)) + adTodayAmount;
-  const totalPool = Math.max(
-    0,
-    Number(adIncomeSummary?.total_pool ?? 0),
-    todayPool + yesterdayPool,
-    todayPool
-  );
+  const adMetrics = getVisibleAdIncomeMetrics({
+    adIncomeSummary,
+    playerPct: pct,
+    rewardAdsToday,
+    adsViewedToday,
+  });
 
   const currentPlanet =
     player?.currentPlanetName ||
@@ -135,10 +121,10 @@ export function Header({
         </div>
 
         <div style={styles.adsGrid}>
-          <AdMetric label="Hoy estimado" value={formatEuro(adTodayAmount, 5)} color="#fbbf24" />
-          <AdMetric label={yesterdayClosed ? "Ayer ganado" : "Ayer estim."} value={formatEuro(yesterdayAmount, 5)} color="#86efac" />
-          <AdMetric label="Ganado total" value={formatEuro(totalEarned, 5)} color="#67e8f9" />
-          <AdMetric label="Pool total" value={formatEuro(totalPool, 5)} color="#c084fc" />
+          <AdMetric label="Hoy estimado" value={formatEuro(adMetrics.visibleTodayEstimate, 5)} color="#fbbf24" />
+          <AdMetric label={adMetrics.yesterdayClosed ? "Ayer ganado" : "Ayer estim."} value={formatEuro(adMetrics.visibleYesterdayPayout, 5)} color="#86efac" />
+          <AdMetric label="Ganado total" value={formatEuro(adMetrics.visibleTotalEarned, 5)} color="#67e8f9" />
+          <AdMetric label="Pool total" value={formatEuro(adMetrics.visibleTotalPool, 5)} color="#c084fc" />
         </div>
       </button>
 

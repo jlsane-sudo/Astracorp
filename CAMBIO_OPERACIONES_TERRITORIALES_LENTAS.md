@@ -271,6 +271,19 @@ El mapa calcula un objetivo recomendado entre los sectores no controlados. La re
 
 El jugador puede pulsar el bloque `Objetivo sugerido` para seleccionar rapidamente el sector con mejor relacion valor/riesgo.
 
+## Alertas territoriales accionables
+
+Se añade una capa de señales tacticas para que el jugador no tenga que interpretar todo mirando barras:
+
+- frente rival activo;
+- sector propio en riesgo;
+- indicios de infiltracion por amenaza alta y pocas defensas;
+- defensa temporal a punto de caducar;
+- conquista, espionaje, hackeo o sabotaje listo para resolver;
+- operaciones todavia en preparacion con ETA.
+
+Estas señales aparecen dentro de `Territorio` y se pueden pulsar para seleccionar el sector afectado. El centro de alertas de `Inicio` tambien avisa cuando hay operaciones territoriales listas o sectores con indicios de infiltracion.
+
 La ampliacion completa tambien fue verificada con:
 
 ```bash

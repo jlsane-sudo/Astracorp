@@ -221,6 +221,91 @@ function getStrategicTargetScore(region, playerName) {
   return value + vulnerability - hostilePenalty;
 }
 
+function getTerritoryActionSignals(regions = [], playerName = "") {
+  const now = Date.now();
+  const signals = [];
+  regions.forEach((region) => {
+    const isMine = region.controller === playerName;
+    const enemy = getEnemyCampaignState(region);
+    const own = getCampaignState(region, playerName);
+    const defenseCount = Array.isArray(region.defenseAssets) ? region.defenseAssets.length : 0;
+    const threat = Number(region.threat ?? 0);
+    const stability = Number(region.stability ?? 0);
+    const operationChecks = [
+      { key: "conquest", label: "Conquista lista", operation: own.operation || region.activeOperation, action: "Resolver fase de conquista" },
+      { key: "spy", label: "Informe listo", operation: region.intelOperation, action: "Resolver espionaje" },
+      { key: "hack", label: "Hackeo listo", operation: region.hackOperation, action: "Resolver hackeo" },
+      { key: "sabotage", label: "Sabotaje listo", operation: region.sabotageOperation, action: "Resolver sabotaje" },
+    ];
+
+    if (isMine && enemy) {
+      signals.push({
+        id: `front-${region.id}`,
+        tone: "danger",
+        title: "Frente rival activo",
+        text: `${region.regionName}: ${enemy.attackerName} avanza al ${Math.round(enemy.progress)}%.`,
+        action: "Cortar frente",
+        region,
+        priority: 100 + Number(enemy.progress ?? 0),
+      });
+    }
+
+    if (isMine && (threat >= 72 || stability <= 32)) {
+      signals.push({
+        id: `risk-${region.id}`,
+        tone: "danger",
+        title: "Sector en riesgo",
+        text: `${region.regionName}: amenaza ${Math.round(threat)}%, estabilidad ${Math.round(stability)}%.`,
+        action: "Reforzar defensa",
+        region,
+        priority: 85 + threat + Math.max(0, 45 - stability),
+      });
+    } else if (isMine && threat >= 48 && defenseCount <= 1) {
+      signals.push({
+        id: `suspicious-${region.id}`,
+        tone: "warn",
+        title: "Indicios de infiltracion",
+        text: `${region.regionName}: amenaza subiendo y pocas defensas ocultas.`,
+        action: "Instalar defensa",
+        region,
+        priority: 62 + threat,
+      });
+    }
+
+    if (isMine && region.defenseResponse && Number(region.defenseResponse.expiresAt ?? 0) - now < 2 * 60 * 60 * 1000) {
+      signals.push({
+        id: `defense-expiring-${region.id}`,
+        tone: "info",
+        title: "Defensa temporal por caducar",
+        text: `${region.regionName}: ${region.defenseResponse.label || "respuesta defensiva"} termina pronto.`,
+        action: "Revisar sector",
+        region,
+        priority: 50,
+      });
+    }
+
+    if (!isMine) {
+      operationChecks.forEach((item) => {
+        if (!item.operation) return;
+        const eta = getTerritoryOperationEtaMs(item.operation);
+        signals.push({
+          id: `${item.key}-${region.id}`,
+          tone: eta <= 0 ? "success" : "info",
+          title: eta <= 0 ? item.label : "Operacion en preparacion",
+          text: eta <= 0
+            ? `${region.regionName}: ${item.action.toLowerCase()} disponible.`
+            : `${region.regionName}: ${item.action.toLowerCase()} en ${formatEta(eta)}.`,
+          action: eta <= 0 ? item.action : "Ver ETA",
+          region,
+          priority: eta <= 0 ? 78 : 42,
+        });
+      });
+    }
+  });
+
+  return signals.sort((a, b) => b.priority - a.priority).slice(0, 6);
+}
+
 function getFortCost(region) {
   const fort = Math.max(0, Number(region?.fortification ?? 0));
   const tier = Math.floor(fort / 25);
@@ -677,6 +762,7 @@ export function MapView({
   const controlledStrategicProfiles = regions
     .filter((region) => region.controller === playerName && region.strategicProfile)
     .map((region) => ({ ...region.strategicProfile, regionName: region.regionName }));
+  const territorySignals = getTerritoryActionSignals(regions, playerName);
   const recommendedTarget = [...regions]
     .filter((region) => region.controller !== playerName)
     .map((region) => ({ region, score: getStrategicTargetScore(region, playerName) }))
@@ -800,6 +886,29 @@ export function MapView({
                   <strong>{operation.title}</strong>
                   <span>{operation.region.regionName}</span>
                   <span>{operation.eta > 0 ? formatEta(operation.eta) : `${Math.round(operation.progress)}%`}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {territorySignals.length > 0 && (
+          <div style={styles.territorySignalPanel}>
+            <div style={styles.operationQueueHeader}>Alertas territoriales accionables</div>
+            <div style={styles.territorySignalGrid}>
+              {territorySignals.map((signal) => (
+                <button
+                  key={signal.id}
+                  type="button"
+                  onClick={() => onSelect?.(signal.region)}
+                  style={{
+                    ...styles.territorySignalItem,
+                    borderColor: signal.tone === "danger" ? "rgba(248,113,113,0.32)" : signal.tone === "success" ? "rgba(74,222,128,0.28)" : "rgba(34,211,238,0.22)",
+                    background: signal.tone === "danger" ? "rgba(127,29,29,0.16)" : signal.tone === "success" ? "rgba(20,83,45,0.13)" : "rgba(8,47,73,0.16)",
+                  }}
+                >
+                  <strong>{signal.title}</strong>
+                  <span>{signal.text}</span>
+                  <em>{signal.action}</em>
                 </button>
               ))}
             </div>
@@ -2019,6 +2128,30 @@ const styles = {
     color: "#e0f2fe",
     borderRadius: 8,
     padding: "7px 8px",
+    fontSize: 11,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  territorySignalPanel: {
+    display: "grid",
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    background: "rgba(15,23,42,0.58)",
+    border: "1px solid rgba(251,191,36,0.18)",
+  },
+  territorySignalGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: 7,
+  },
+  territorySignalItem: {
+    display: "grid",
+    gap: 3,
+    border: "1px solid rgba(34,211,238,0.16)",
+    color: "#e2e8f0",
+    borderRadius: 8,
+    padding: "8px 9px",
     fontSize: 11,
     textAlign: "left",
     cursor: "pointer",

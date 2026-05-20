@@ -1,7 +1,7 @@
 import './styles/global.css';
 import { Component, lazy, Suspense, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from './components/Header';
-import { Confetti, EventBanner, Notification } from './components/Overlays';
+import { Confetti, EventBanner, Notification, PlanetArrivalBanner } from './components/Overlays';
 import { Tabs } from './components/Tabs';
 import { useAstraCorpGame } from './hooks/useAstraCorpGame';
 import { supabase } from './lib/supabase';
@@ -513,6 +513,23 @@ function AlertCenter({ save, onOpenTab }) {
     territory.controller === playerName &&
     (Number(territory?.threat || 0) >= 70 || Number(territory?.stability || 0) <= 30)
   ).length;
+  const readyTerritoryOps = territories.filter((territory) => {
+    if (territory.controller === playerName) return false;
+    const ops = [
+      territory.activeOperation,
+      territory.campaign?.operation,
+      territory.intelOperation,
+      territory.hackOperation,
+      territory.sabotageOperation,
+    ].filter(Boolean);
+    return ops.some((operation) => Number(operation?.resolvesAt ?? Infinity) <= now);
+  }).length;
+  const suspiciousSectors = territories.filter((territory) =>
+    territory.controller === playerName &&
+    !territory.enemyCampaign &&
+    Number(territory?.threat || 0) >= 48 &&
+    (Array.isArray(territory.defenseAssets) ? territory.defenseAssets.length : 0) <= 1
+  ).length;
   const activeSectorEvent = save?.activeSectorEvent;
   const maintenanceDebt = Number(save?.maintenanceDebt || 0);
   const activeEvent = save?.activeEvent;
@@ -540,6 +557,8 @@ function AlertCenter({ save, onOpenTab }) {
   }
   if (enemyFronts > 0) addAlert({ tab: 'map', tone: 'danger', title: 'Frentes rivales', text: `${enemyFronts} sector(es) bajo presion rival.`, reason: 'Refuerza o corta suministros para no perderlos.' });
   if (riskySectors > 0) addAlert({ tab: 'map', tone: 'danger', title: 'Sectores inestables', text: `${riskySectors} sector(es) con amenaza alta o baja estabilidad.`, reason: 'La inestabilidad aumenta el riesgo de perdida.' });
+  if (readyTerritoryOps > 0) addAlert({ tab: 'map', tone: 'success', title: 'Operaciones listas', text: `${readyTerritoryOps} operacion(es) territoriales esperando resolucion.`, reason: 'Resolverlas convierte preparacion lenta en avance real.' });
+  if (suspiciousSectors > 0) addAlert({ tab: 'map', tone: 'warn', title: 'Indicios de infiltracion', text: `${suspiciousSectors} sector(es) necesitan defensa oculta.`, reason: 'Instala defensa o activa contrainteligencia antes de que escale.' });
   if (urgentContracts > 0) addAlert({ tab: 'missions', tone: 'danger', title: 'Contratos urgentes', text: `${urgentContracts} pedido(s) cerca de expirar.`, reason: 'Estos contratos desaparecen si se acaba el tiempo.' });
   if (readyContracts > 0) addAlert({ tab: 'missions', tone: 'success', title: 'Recompensas listas', text: `${readyContracts} contrato(s) ya se pueden entregar.`, reason: 'Convierte stock en creditos y XP sin esperar mas.' });
   if (fullCompanies > 0) addAlert({ tab: 'business', tone: 'warn', title: 'Almacen lleno', text: `${fullCompanies} empresa(s) casi al limite.`, reason: 'Recoge produccion para no perder ritmo.' });
@@ -1236,6 +1255,7 @@ export default function App() {
   const [showPlanetPicker, setShowPlanetPicker] = useState(false);
   const [planetTransit, setPlanetTransit] = useState(null);
   const [planetArrival, setPlanetArrival] = useState(null);
+  const [planetArrivalBanner, setPlanetArrivalBanner] = useState(null);
   const [authModalMode, setAuthModalMode] = useState(null);
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1244,6 +1264,7 @@ export default function App() {
   const [levelMoment, setLevelMoment] = useState(null);
   const previousLevelRef = useRef(Number(save?.player?.level ?? 1));
   const transitTimerRef = useRef(null);
+  const planetBannerTimerRef = useRef(null);
   const topbarRef = useRef(null);
   const playerLevel = Number(save?.player?.level ?? 1);
   const currentPlanetId = save?.player?.currentPlanet || save?.player?.planet;
@@ -1254,7 +1275,7 @@ export default function App() {
   const isEarlyFocusMode = playerLevel < 10;
   const unlockedTabs = useMemo(
     () => (playerLevel < 16 ? getProgressiveUnlockedTabs(save) : null),
-    [playerLevel, save?.stats?.works, save?.companies?.length]
+    [playerLevel, save]
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1273,6 +1294,7 @@ export default function App() {
 
   useEffect(() => () => {
     if (transitTimerRef.current) clearTimeout(transitTimerRef.current);
+    if (planetBannerTimerRef.current) clearTimeout(planetBannerTimerRef.current);
   }, []);
 
   const finishPlanetTransit = (transit) => {
@@ -1280,6 +1302,12 @@ export default function App() {
     transitTimerRef.current = null;
     setPlanetTransit(null);
     setPlanetArrival({ ...transit, arrivedAt: Date.now() });
+    setPlanetArrivalBanner({ ...transit, arrivedAt: Date.now() });
+    if (planetBannerTimerRef.current) clearTimeout(planetBannerTimerRef.current);
+    planetBannerTimerRef.current = setTimeout(() => {
+      setPlanetArrivalBanner(null);
+      planetBannerTimerRef.current = null;
+    }, 12000);
   };
 
   const loadProfile = async (userId) => {
@@ -1599,6 +1627,14 @@ export default function App() {
         onClose={actions.closeEventBanner}
         onOpenTab={actions.setTab}
         playerLevel={save.player?.level}
+      />
+      <PlanetArrivalBanner
+        arrival={planetArrivalBanner}
+        onClose={() => setPlanetArrivalBanner(null)}
+        onOpenTab={(nextTab) => {
+          setPlanetArrivalBanner(null);
+          actions.setTab(nextTab);
+        }}
       />
       <LevelUpModal moment={levelMoment} onClose={() => setLevelMoment(null)} />
 
