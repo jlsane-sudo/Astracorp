@@ -1231,8 +1231,6 @@ export default function App() {
   const {
     save,
     allUsers,
-    equalShare,
-    myAdShare,
     actions,
     jobs,
     currentRegion,

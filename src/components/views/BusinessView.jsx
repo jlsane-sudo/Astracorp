@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { COMPANY_TYPES, getCompanyBuildCost } from '../../data/companyTypes';
 import IndustryVisual from '../../components/IndustryVisual';
 import { companyAssets, resourceAssets } from '../../assets/generated/assets';
@@ -927,25 +927,6 @@ function getCompanySellRefund(typeKey, ownedCount = 1) {
   return round2(Math.max(1, lastUnitCost * 0.45));
 }
 
-const formatDuration = (hours) => {
-  if (!Number.isFinite(hours) || hours <= 0) return 'Listo';
-  const totalMinutes = Math.max(1, Math.ceil(hours * 60));
-  const hh = Math.floor(totalMinutes / 60);
-  const mm = totalMinutes % 60;
-
-  if (hh <= 0) return `${mm} min`;
-  if (mm === 0) return `${hh} h`;
-  return `${hh} h ${mm} min`;
-};
-
-const formatCountdown = (ms) => {
-  const totalSeconds = Math.max(0, Math.ceil(Number(ms || 0) / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
-
 function getGroupMissingInputs(group, inventory) {
   const meta = group.meta;
   if (!meta?.inputs?.length) return [];
@@ -1303,116 +1284,6 @@ function getNetFlowInsight(groups, market) {
 }
 
 
-function getFlowStatus(entry) {
-  const net = Number(entry?.net || 0);
-  if (net < -50) {
-    return {
-      label: 'Critico',
-      emoji: '',
-      color: '#fecaca',
-      background: 'rgba(239,68,68,0.12)',
-      border: '1px solid rgba(248,113,113,0.22)',
-    };
-  }
-  if (net < 0) {
-    return {
-      label: 'Inestable',
-      emoji: '',
-      color: '#fde68a',
-      background: 'rgba(245,158,11,0.12)',
-      border: '1px solid rgba(251,191,36,0.22)',
-    };
-  }
-  return {
-    label: 'Optimo',
-    emoji: '',
-    color: '#bbf7d0',
-    background: 'rgba(34,197,94,0.12)',
-    border: '1px solid rgba(74,222,128,0.22)',
-  };
-}
-
-function getEconomyMood(netFlowInsight, economyInsight) {
-  const negativeFlows = (netFlowInsight?.flows || []).filter((entry) => Number(entry.net || 0) < 0);
-  const criticalFlows = negativeFlows.filter((entry) => Number(entry.net || 0) < -50);
-  const totalNegativeValue = negativeFlows.reduce(
-    (sum, entry) => sum + Math.abs(Number(entry.marketValue || 0)),
-    0
-  );
-
-  if (criticalFlows.length > 0) {
-    return {
-      label: 'Economia en colapso',
-      emoji: '',
-      text: `Hay ${criticalFlows.length} recurso(s) en deficit critico. Estas perdiendo unos ${formatNumber(totalNegativeValue, 0)}/h por cuellos de botella.`,
-      color: '#fecaca',
-      background: 'rgba(239,68,68,0.12)',
-      border: '1px solid rgba(248,113,113,0.24)',
-    };
-  }
-
-  if (negativeFlows.length > 0) {
-    return {
-      label: 'Economia inestable',
-      emoji: '',
-      text: `La cadena funciona, pero ${negativeFlows.length} recurso(s) estan en negativo. Prioriza el deficit antes de expandir transformadores.`,
-      color: '#fde68a',
-      background: 'rgba(245,158,11,0.12)',
-      border: '1px solid rgba(251,191,36,0.22)',
-    };
-  }
-
-  return {
-    label: Number(economyInsight?.totalSellValuePerHour || 0) > 0 ? 'BIZ'
-              : 'ORB',
-    emoji: '',
-    text: Number(economyInsight?.totalSellValuePerHour || 0) > 0
-      ? 'BIZ'
-              : 'ORB',
-    color: '#bbf7d0',
-    background: 'rgba(34,197,94,0.12)',
-    border: '1px solid rgba(74,222,128,0.22)',
-  };
-}
-
-function getActionImpactLines(recommendedPlan, netFlowInsight) {
-  const lines = [];
-
-  if (recommendedPlan.kind === 'build' && recommendedPlan.recommendedMeta) {
-    const meta = recommendedPlan.recommendedMeta;
-    const flow = (netFlowInsight?.flows || []).find((entry) => entry.key === meta.resourceKey);
-    lines.push(`+${formatNumber(meta.ratePerHour || 0, 1)}/h de ${meta.resourceLabel || meta.name}.`);
-    if (flow && Number(flow.net || 0) < 0) {
-      lines.push(`Reduce el deficit de ${flow.name}: ahora esta en ${formatNumber(flow.net, 1)}/h.`);
-    }
-    lines.push(recommendedPlan.isCritical
-      ? 'Evita ampliar empresas que consuman recursos ya negativos.'
-      : 'Mejora la base industrial sin romper la cadena actual.');
-    return lines;
-  }
-
-  if (recommendedPlan.kind === 'collect') {
-    lines.push('Convierte produccion almacenada en inventario util ahora mismo.');
-    lines.push('Evita que el almacen se llene y la empresa deje de producir.');
-    return lines;
-  }
-
-  if (recommendedPlan.kind === 'sell') {
-    lines.push('Genera liquidez inmediata con el mejor valor acumulado.');
-    lines.push('til si necesitas creditos para construir o reforzar territorios.');
-    return lines;
-  }
-
-  if (recommendedPlan.kind === 'contract') {
-    lines.push('Cierra recompensa directa sin esperar mas produccion.');
-    lines.push('Los contratos listos suelen ser mejor que vender al mercado.');
-    return lines;
-  }
-
-  lines.push('Manten la cadena activa y revisa el proximo cuello de botella.');
-  return lines;
-}
-
 function getCompanyCountByType(groups, typeKey) {
   return (groups || [])
     .filter((group) => group.type === typeKey)
@@ -1690,20 +1561,12 @@ export function BusinessView({
   save,
   actions,
   companies: companiesProp,
-  adBoosts,
-  onTriggerCompanyAdBoost,
 }) {
   const companies = companiesProp || save?.companies || EMPTY_ARRAY;
   const playerLevel = Number(save?.player?.level ?? 1);
   const inventory = save?.inventory || EMPTY_OBJECT;
   const market = save?.market || EMPTY_OBJECT;
-  const [floatingRewards, setFloatingRewards] = useState([]);
   const [openPropertiesKey, setOpenPropertiesKey] = useState(null);
-  const [boostNow, setBoostNow] = useState(Date.now());
-  const companyBoostUntil = Number(adBoosts?.companyBoostUntil ?? 0);
-  const companyBoostRemainingMs = Math.max(0, companyBoostUntil - boostNow);
-  const companyBoostActive = companyBoostRemainingMs > 0;
-  const companyBoostCountdown = formatCountdown(companyBoostRemainingMs);
 
   const groups = useMemo(() => groupCompanies(companies), [companies]);
   const ownedCountByType = useMemo(() => {
@@ -1753,37 +1616,10 @@ export function BusinessView({
   const totalCollectable = groups.reduce((sum, group) => sum + (group.type === 'research_lab' ? 0 : getWholeUnits(group.totalStored)), 0);
   const canCollectAll = totalCollectable > 0;
   const showCompanySellControls = playerLevel > 10;
-  useEffect(() => {
-    if (companyBoostUntil <= Date.now()) {
-      setBoostNow(Date.now());
-      return undefined;
-    }
-
-    const timer = setInterval(() => setBoostNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [companyBoostUntil]);
-
-  const pushFloatingReward = (groupKey, text) => {
-    const id = `${groupKey}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-    setFloatingRewards((prev) => [...prev, { id, groupKey, text }]);
-
-    setTimeout(() => {
-      setFloatingRewards((prev) => prev.filter((item) => item.id !== id));
-    }, 950);
-  };
-
   const handleCollectGroup = (group) => {
     const amount = getWholeUnits(group.totalStored);
     if (amount <= 0) return;
-
-    pushFloatingReward(group.key, `+${formatNumber(amount)} ${group.resourceLabel}`.trim());
     actions.collectCompanyGroup(group.type);
-  };
-
-  const handleCompanyAdBoost = () => {
-    if (companyBoostActive) return;
-    onTriggerCompanyAdBoost?.();
   };
 
   const handleCollectAllWithAd = async () => {
@@ -1791,19 +1627,11 @@ export function BusinessView({
 
     const collected = await actions.collectAllCompaniesWithAd?.();
     if (!collected) return;
-
-    groups
-      .filter((group) => group.type !== 'research_lab' && getWholeUnits(group.totalStored) > 0)
-      .forEach((group) => {
-        pushFloatingReward(group.key, `+${formatNumber(getWholeUnits(group.totalStored))} ${group.resourceLabel}`.trim());
-      });
   };
 
 
   const openGroup = groups.find((group) => group.key === openPropertiesKey) || null;
   const openGroupInputStatus = openGroup ? getGroupInputStatus(openGroup, inventory) : [];
-  const openGroupMissingInputs = openGroup ? getGroupMissingInputs(openGroup, inventory) : [];
-  const openGroupIsResearchLab = openGroup?.type === 'research_lab';
   const bottleneckInsight = getBottleneckInsight(groups, inventory);
   const economyInsight = getEconomyInsight(groups, market);
   const netFlowInsight = getNetFlowInsight(groups, market);
@@ -1817,47 +1645,7 @@ export function BusinessView({
     netFlowInsight,
     playerLevel,
   });
-  const economyMood = getEconomyMood(netFlowInsight, economyInsight);
-  const actionImpactLines = getActionImpactLines(recommendedPlan, netFlowInsight);
   const isUrgentPlan = recommendedPlan.kind === 'contract' || recommendedPlan.kind === 'collect';
-  const isProfitPlan = recommendedPlan.kind === 'sell';
-  const isBuildPlan = recommendedPlan.kind === 'build';
-  const compactAssistant = typeof window !== 'undefined' && window.innerWidth < 980;
-  const commandMainStyle = {
-    ...styles.commandMain,
-    ...(isUrgentPlan ? styles.commandMainUrgent : null),
-    ...(isProfitPlan ? styles.commandMainProfit : null),
-    ...(isBuildPlan ? styles.commandMainBuild : null),
-    transform: isUrgentPlan ? 'BIZ'
-              : 'ORB',
-  };
-  const planSignalStyle = {
-    ...styles.commandSignal,
-    ...(isUrgentPlan
-      ? {
-          background: 'rgba(248,113,113,0.14)',
-          border: '1px solid rgba(248,113,113,0.22)',
-          color: '#fecaca',
-        }
-      : isProfitPlan
-        ? {
-            background: 'rgba(74,222,128,0.14)',
-            border: '1px solid rgba(74,222,128,0.22)',
-            color: '#bbf7d0',
-          }
-        : isBuildPlan
-          ? {
-              background: 'rgba(251,191,36,0.14)',
-              border: '1px solid rgba(251,191,36,0.22)',
-              color: '#fde68a',
-            }
-          : {
-              background: 'rgba(96,165,250,0.14)',
-              border: '1px solid rgba(96,165,250,0.22)',
-              color: '#bfdbfe',
-            }),
-  };
-
   const compactRows = groups.map((group) => {
     const progress = group.totalStorage > 0 ? (group.totalStored / group.totalStorage) * 100 : 0;
     const status = getGroupStatus(group, inventory);

@@ -313,14 +313,6 @@ function getContractPriority(contract, contractPremium, expiresAt) {
   };
 }
 
-function getDemandLabel(qty) {
-  const safeQty = Number(qty ?? 0);
-  if (safeQty >= 500) return 'Demanda extrema';
-  if (safeQty >= 180) return 'Demanda alta';
-  if (safeQty >= 60) return 'Demanda media';
-  return 'Demanda baja';
-}
-
 export function MissionsView({
   missions = [],
   player,

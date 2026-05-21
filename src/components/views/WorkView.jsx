@@ -502,107 +502,6 @@ const getJobVisualType = (item) => {
   return 'generic';
 };
 
-const getJobProfile = (job) => {
-  const item = job?.item;
-
-  if (item === 'water') {
-    return {
-      mode: 'Captacion',
-      hint: 'Barrido atmosferico y lectura de humedad.',
-      accent: '#38bdf8',
-      shellBg: 'rgba(56,189,248,0.08)',
-      shellBorder: 'rgba(56,189,248,0.16)',
-      bars: [30, 58, 82, 48],
-    };
-  }
-
-  if (item === 'energy_cells') {
-    return {
-      mode: 'Mantenimiento',
-      hint: 'Calibracion fotonica y limpieza de captacion.',
-      accent: '#facc15',
-      shellBg: 'rgba(250,204,21,0.08)',
-      shellBorder: 'rgba(250,204,21,0.16)',
-      bars: [82, 54, 66, 88],
-    };
-  }
-
-  if (item === 'mineral') {
-    return {
-      mode: 'Perforacion',
-      hint: 'Excavacion superficial y arrastre mineral.',
-      accent: '#fb923c',
-      shellBg: 'rgba(251,146,60,0.08)',
-      shellBorder: 'rgba(251,146,60,0.16)',
-      bars: [52, 80, 68, 42],
-    };
-  }
-
-  if (item === 'purified_water') {
-    return {
-      mode: 'Refinado',
-      hint: 'Filtro de etapa corta con control de pureza.',
-      accent: '#22d3ee',
-      shellBg: 'rgba(34,211,238,0.08)',
-      shellBorder: 'rgba(34,211,238,0.16)',
-      bars: [44, 72, 60, 88],
-    };
-  }
-
-  if (item === 'metal_components') {
-    return {
-      mode: 'Mecanizado',
-      hint: 'Corte, ensamblaje y tolerancia estructural.',
-      accent: '#a78bfa',
-      shellBg: 'rgba(167,139,250,0.08)',
-      shellBorder: 'rgba(167,139,250,0.16)',
-      bars: [64, 38, 84, 58],
-    };
-  }
-
-  if (item === 'oxygen_tanks') {
-    return {
-      mode: 'Sintesis',
-      hint: 'Compresion de mezcla y sellado de reserva.',
-      accent: '#34d399',
-      shellBg: 'rgba(52,211,153,0.08)',
-      shellBorder: 'rgba(52,211,153,0.16)',
-      bars: [36, 76, 90, 62],
-    };
-  }
-
-  if (item === 'alloy_frames') {
-    return {
-      mode: 'Forja',
-      hint: 'Fase termica y moldeado de aleacion pesada.',
-      accent: '#f472b6',
-      shellBg: 'rgba(244,114,182,0.08)',
-      shellBorder: 'rgba(244,114,182,0.16)',
-      bars: [74, 50, 86, 44],
-    };
-  }
-
-  if (item === 'habitat_modules') {
-    return {
-      mode: 'Montaje',
-      hint: 'Integracion de casco, soporte y modulo vital.',
-      accent: '#60a5fa',
-      shellBg: 'rgba(96,165,250,0.08)',
-      shellBorder: 'rgba(96,165,250,0.16)',
-      bars: [42, 68, 92, 74],
-    };
-  }
-
-  return {
-    mode: 'Operacion',
-    hint: 'Modulo general de trabajo.',
-    accent: '#7dd3fc',
-    shellBg: 'rgba(125,211,252,0.08)',
-    shellBorder: 'rgba(125,211,252,0.16)',
-    bars: [40, 60, 80, 52],
-  };
-};
-
 const getJobState = ({ activeJob, player, job }) => {
   if (activeJob?.label === job?.label) {
     return { label: 'En curso', tone: 'info' };
@@ -677,7 +576,6 @@ const getManualRatePerHour = (job) => {
 export function WorkView({ player, inventory, jobs, activeJob, onWork, onTriggerWorkAdBoost }) {
   const [now, setNow] = useState(Date.now());
   const [floatingStart, setFloatingStart] = useState([]);
-  const playerLevel = Number(player?.level ?? 1);
 
   useEffect(() => {
     if (!activeJob?.endAt) return;

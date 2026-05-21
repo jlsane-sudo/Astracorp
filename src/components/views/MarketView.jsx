@@ -542,12 +542,6 @@ const getMaxAffordableBuy = (item, credits = 0) => {
   return low;
 };
 
-const getOpportunityScore = (item, owned = 0) => {
-  const heat = getDemandHeat(item);
-  const sellPrice = getSellMargin(item);
-  return heat * Math.max(1, sellPrice) * (owned > 0 ? 1.2 : 1);
-};
-
 const getMarketState = (heat) => {
   if (heat >= 1.25) {
     return {
@@ -569,30 +563,6 @@ const getMarketState = (heat) => {
     label: 'Mercado estable',
     tone: 'stable',
     hint: 'Oferta y demanda están equilibradas.',
-  };
-};
-
-const getStateBadgeStyle = (tone) => {
-  if (tone === 'hot') {
-    return {
-      background: 'rgba(56,189,248,0.12)',
-      border: '1px solid rgba(56,189,248,0.18)',
-      color: '#7dd3fc',
-    };
-  }
-
-  if (tone === 'cold') {
-    return {
-      background: 'rgba(244,63,94,0.12)',
-      border: '1px solid rgba(244,63,94,0.18)',
-      color: '#fda4af',
-    };
-  }
-
-  return {
-    background: 'rgba(148,163,184,0.12)',
-    border: '1px solid rgba(148,163,184,0.18)',
-    color: '#cbd5e1',
   };
 };
 
@@ -665,38 +635,6 @@ const getGlobalPressure = (item) => {
   };
 };
 
-const getHelperText = ({ canBuy, canSell, state, sellPrice, buyPrice, owned }) => {
-  if (state.tone === 'hot' && canSell) {
-    return `Buen momento para vender. El mercado está fuerte y cobrarías €${formatNumber(
-      sellPrice,
-      2
-    )} por unidad.`;
-  }
-
-  if (state.tone === 'cold' && canBuy) {
-    return `Mercado con sobreoferta. Puede ser una buena entrada si quieres acumular a €${formatNumber(
-      buyPrice,
-      2
-    )}.`;
-  }
-
-  if (!canBuy && !canSell) {
-    return 'No puedes operar ahora: no tienes créditos para comprar ni stock para vender.';
-  }
-
-  if (canBuy && !canSell) {
-    return `Puedes comprar ahora mismo. Coste real: €${formatNumber(buyPrice, 2)} por unidad.`;
-  }
-
-  if (!canBuy && canSell) {
-    return `No puedes comprar ahora, pero sí vender tus ${formatNumber(
-      owned
-    )} unidad(es).`;
-  }
-
-  return 'Puedes comprar o vender ahora mismo según tu estrategia.';
-};
-
 const getResourceFlowMap = (companies = []) =>
   (companies || []).reduce((acc, company) => {
     const typeKey = company?.companyType || company?.type;
@@ -736,61 +674,6 @@ export function MarketView({ market, inventory, onBuy, onSell, player, companies
   }, [market, playerLevel]);
 
   const credits = Number(player?.credits ?? 0);
-
-  const hotCount = useMemo(
-    () => items.filter(([, item]) => getDemandHeat(item) >= 1.25).length,
-    [items]
-  );
-
-  const totalInventoryUnits = useMemo(
-    () =>
-      Object.values(inventory || {}).reduce((sum, value) => sum + Number(value || 0), 0),
-    [inventory]
-  );
-
-  const bestSell = useMemo(
-    () =>
-      items
-        .map(([key, item]) => ({
-          key,
-          name: item?.name || key,
-          owned: getSellableUnits(Number(inventory?.[key] || 0)),
-          sellPrice: getSellMargin(item),
-        }))
-        .filter((item) => item.owned > 0)
-        .sort((a, b) => b.sellPrice - a.sellPrice)[0] || null,
-    [items, inventory]
-  );
-
-  const bestBuy = useMemo(
-    () =>
-      items
-        .map(([key, item]) => ({
-          key,
-          name: item?.name || key,
-          heat: getDemandHeat(item),
-          price: getMarketBuyQuote(item, 1).unitPrice,
-        }))
-        .filter((item) => credits >= item.price)
-        .sort((a, b) => b.heat - a.heat)[0] || null,
-    [items, credits]
-  );
-
-  const marketSpotlight = useMemo(
-    () =>
-      items
-        .map(([key, item]) => ({
-          key,
-          name: item?.name || key,
-          heat: getDemandHeat(item),
-          sellPrice: getSellMargin(item),
-          price: Number(item?.price ?? 0),
-          owned: getSellableUnits(Number(inventory?.[key] || 0)),
-          score: getOpportunityScore(item, getSellableUnits(Number(inventory?.[key] || 0))),
-        }))
-        .sort((a, b) => b.score - a.score)[0] || null,
-    [items, inventory]
-  );
 
   const resourceFlow = useMemo(() => getResourceFlowMap(companies), [companies]);
   const activeEventKeys = new Set(activeEvent?.affectedKeys || []);

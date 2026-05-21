@@ -3,7 +3,6 @@ export const SPONSORED_AD_URL = 'https://omg10.com/4/10912107';
 export const SPONSORED_AD_COOLDOWN_MS = 1000 * 60 * 3;
 
 export function getSponsoredAdAvailability({
-  rewardAdsToday = 0,
   lastRewardAdAt = null,
   now = Date.now(),
 } = {}) {

@@ -1595,8 +1595,9 @@ export const getControlledStrategicEffects = (
 };
 
 export const getCompanyOccupancyState = (
-  companyRegionKey, territories = [], playerName = '', planetId = STARTER_PLANET_ID, companyTerritoryId = null, companyOwnerName = playerName
+  companyRegionKey, territories = [], playerName = '', planetId = STARTER_PLANET_ID, companyTerritoryId = null
 ) => {
+  void playerName;
   const region = getRegionEconomy(companyRegionKey, planetId);
   const targetTerritoryId = companyTerritoryId ?? region?.territoryId;
   const territory = targetTerritoryId !== undefined && targetTerritoryId !== null

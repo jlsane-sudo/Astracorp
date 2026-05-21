@@ -598,8 +598,6 @@ function getDetailedPlanetVisual(planet) {
 }
 
 function samplePlanetColor(visual, longitude, latitude, cloudRotation) {
-  const u = longitude / (Math.PI * 2);
-  const v = latitude / Math.PI + 0.5;
   const sphereX = Math.cos(latitude) * Math.cos(longitude);
   const sphereY = Math.sin(latitude);
   const sphereZ = Math.cos(latitude) * Math.sin(longitude);
@@ -710,37 +708,6 @@ function distanceOnSphere(lonA, latA, lonB, latB) {
     -1,
     1
   ));
-}
-
-function fbm(x, y, seed) {
-  let value = 0;
-  let amplitude = 0.5;
-  let frequency = 1;
-  for (let i = 0; i < 5; i += 1) {
-    value += noise2(x * frequency, y * frequency, seed + i * 19) * amplitude;
-    frequency *= 2.03;
-    amplitude *= 0.52;
-  }
-  return value;
-}
-
-function noise2(x, y, seed) {
-  const ix = Math.floor(x);
-  const iy = Math.floor(y);
-  const fx = x - ix;
-  const fy = y - iy;
-  const ux = fx * fx * (3 - 2 * fx);
-  const uy = fy * fy * (3 - 2 * fy);
-  const a = hash2(ix, iy, seed);
-  const b = hash2(ix + 1, iy, seed);
-  const c = hash2(ix, iy + 1, seed);
-  const d = hash2(ix + 1, iy + 1, seed);
-  return lerp(lerp(a, b, ux), lerp(c, d, ux), uy);
-}
-
-function hash2(x, y, seed) {
-  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
-  return n - Math.floor(n);
 }
 
 function hexToRgb(hex) {

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { theme } from "../../theme";
 import { getRegionByTerritoryId, getRegionEconomy } from "../../data/regions";
 import { getPlanetById } from "../../data/planets";
-import { getResearchEffects } from "../../data/researchData";
 import {
   ACTION_ENERGY_COSTS,
   TERRITORY_ATTACK_CREDIT_COST,
@@ -16,7 +15,6 @@ import {
 import {
   DEFENSE_ASSET_TYPES,
   TERRITORY_DEFENSE_RESPONSE_TYPES,
-  getTerritoryDefenseProfile,
   getTerritoryOperationEtaMs,
   getTerritoryOperationProgress,
 } from "../../hooks/engine/gamePureLogic";
@@ -138,17 +136,6 @@ const PLANET_MAP_NOTES = {
   },
 };
 
-function createHexPath(cx, cy, radius = HEX_RADIUS) {
-  const points = Array.from({ length: 6 }, (_, index) => {
-    const angle = ((60 * index) - 30) * (Math.PI / 180);
-    const x = cx + radius * Math.cos(angle);
-    const y = cy + radius * Math.sin(angle);
-    return `${Math.round(x)} ${Math.round(y)}`;
-  });
-
-  return `M${points[0]} L${points.slice(1).join(' L')} Z`;
-}
-
 function pctStyle(value, mode = "good") {
   if (mode === "danger") {
     return value >= 75 ? "#f87171" : value >= 45 ? "#fbbf24" : "#4ade80";
@@ -175,20 +162,10 @@ function formatResourceAmount(amount) {
   return Number(amount || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
 }
 
-function formatRewardResources(resources = []) {
-  return resources.map((resource) => `${resource.amount} ${resource.key}`).join(" + ");
-}
-
 function getShortMapBonusLabel(region) {
   const rate = Number(region?.bonusRate ?? 0) * 100;
   const code = MAP_RESOURCE_CODES[region?.bonusResource] || "BON";
   return rate > 0 ? `+${rate.toLocaleString("es-ES", { maximumFractionDigits: 1 })}% ${code}` : "Sin bonus";
-}
-
-function getTerritoryEconomyBonus(region) {
-  const stabilityBonus = Math.max(0, (Number(region?.stability ?? 0) - 40) / 15000);
-  const fortificationBonus = Math.max(0, Number(region?.fortification ?? 0) / 25000);
-  return Math.round(Math.min(0.01, stabilityBonus + fortificationBonus) * 1000) / 10;
 }
 
 function getStrategicEffectLine(region) {
@@ -337,51 +314,6 @@ function formatEta(ms) {
   return `${hours} h ${minutes} min`;
 }
 
-function getBattlePreview(region, player, inventory, ownedCount, research, playerName) {
-  if (!region) return null;
-
-  const researchEffects = getResearchEffects(research);
-  const doctrineBonus = Math.max(
-    0,
-    (Number(researchEffects.conquestPowerMult ?? 1) - 1) * 14
-  );
-  const mineralReserve = Math.sqrt(Math.max(0, Number(inventory?.mineral ?? 0)));
-  const attackPower =
-    8 +
-    Number(player?.level ?? 1) * 2.1 +
-    Number(ownedCount ?? 0) * 0.7 +
-    mineralReserve * 1.0 +
-    doctrineBonus;
-  const defensePower = Math.max(
-    8,
-    (region.controller ? 24 : 15) +
-      Number(region?.stability ?? 0) * 0.26 +
-      Number(region?.fortification ?? 0) * 0.34 -
-      Number(region?.threat ?? 0) * 0.05
-  );
-  const campaign = getCampaignState(region, playerName || player?.name);
-  const successChance = Math.max(
-    region.controller ? 8 : 16,
-    Math.min(region.controller ? 62 : 76, 42 + (attackPower - defensePower) * 3.4 + campaign.progress * 0.1)
-  );
-
-  return {
-    attackPower: Math.round(attackPower * 10) / 10,
-    defensePower: Math.round(defensePower * 10) / 10,
-    successChance: Math.round(successChance),
-    campaignProgress: Math.round(campaign.progress),
-    campaignStage: campaign.stage,
-    progressOnWin: region.controller ? 26 : 38,
-    progressOnLoss: region.controller ? 6 : 10,
-    outlook:
-      successChance >= 72
-        ? "Ventana favorable"
-        : successChance >= 48
-          ? "Choque equilibrado"
-          : "Defensa dura",
-  };
-}
-
 function getCampaignStage(progress = 0) {
   const pct = Math.max(0, Math.min(100, Number(progress ?? 0)));
   if (pct >= 76) return { id: "consolidation", label: "Consolidacion", next: "Cerrar dominio" };
@@ -433,18 +365,6 @@ function getOperationLabel(type = "conquest") {
   return "Conquista";
 }
 
-function getRegionState(region, playerName) {
-  const isMine = region.controller === playerName;
-  const isFree = !region.controller;
-  const isCurrent = false;
-  return {
-    isMine,
-    isFree,
-    isCurrent,
-    risk: isMine && (region.threat >= 70 || region.stability <= 30),
-  };
-}
-
 function getSectorVisualState(region, playerName) {
   const isMine = region?.controller === playerName;
   const enemyCampaign = getEnemyCampaignState(region);
@@ -486,19 +406,6 @@ function getSectorMemoryLines(region) {
   return lines;
 }
 
-function getFill(region, playerName) {
-  if (region.controller === playerName) return `${region.color}cc`;
-  if (!region.controller) return "rgba(148,163,184,0.28)";
-  return `${region.color}66`;
-}
-
-function getStroke(region, isSelected, playerName) {
-  if (isSelected) return "#f8fafc";
-  if (region.controller === playerName) return "#86efac";
-  if (!region.controller) return "rgba(226,232,240,0.45)";
-  return "rgba(248,113,113,0.7)";
-}
-
 function getAdCooldownLabel(lastRewardAdAt) {
   const lastAt = Number(lastRewardAdAt ?? 0);
   const remaining = lastAt ? AD_REINFORCE_COOLDOWN_MS - (Date.now() - lastAt) : 0;
@@ -512,20 +419,10 @@ export function MapView({
   playerName,
   player,
   inventory,
-  companies = [],
-  territorialWeeklyEvent,
-  research,
-  battle,
-  election,
   playerCredits = 0,
-  rewardAdsToday = 0,
   lastRewardAdAt = null,
-  activeSectorEvent = null,
   onClaimRewardAd,
   onSelect,
-  onRenameTerritory,
-  onResolveSectorEvent,
-  onCloseSectorEvent,
   onBattle,
   onSabotage,
   onSpy,
@@ -536,9 +433,7 @@ export function MapView({
   onDisruptEnemyCampaign,
   onDisruptAllEnemyCampaigns,
   onBuildTerritoryFort,
-  onStartElection,
   onOpenPolitics,
-  onGoWork,
 }) {
   const currentPlanet = getPlanetById(player?.currentPlanet || player?.planet);
   const currentPlanetNote =
@@ -572,9 +467,6 @@ export function MapView({
     : regions[0] || null;
 
   const mineCount = regions.filter((region) => region.controller === playerName).length;
-  const bestBonusRegion = regions
-    .filter((region) => region.controller === playerName && Number(region.bonusRate ?? 0) > 0)
-    .sort((a, b) => Number(b.bonusRate ?? 0) - Number(a.bonusRate ?? 0))[0] || null;
   const avgStability = mineCount
     ? Math.round(
         regions
@@ -637,13 +529,9 @@ export function MapView({
   const selectedIntelOperation = selectedRegion?.intelOperation || null;
   const selectedHackOperation = selectedRegion?.hackOperation || null;
   const selectedOperationEta = selectedOperation ? getTerritoryOperationEtaMs(selectedOperation) : 0;
-  const selectedOperationProgress = selectedOperation ? getTerritoryOperationProgress(selectedOperation) : 0;
   const selectedSabotageEta = selectedSabotageOperation ? getTerritoryOperationEtaMs(selectedSabotageOperation) : 0;
-  const selectedSabotageProgress = selectedSabotageOperation ? getTerritoryOperationProgress(selectedSabotageOperation) : 0;
   const selectedIntelEta = selectedIntelOperation ? getTerritoryOperationEtaMs(selectedIntelOperation) : 0;
   const selectedHackEta = selectedHackOperation ? getTerritoryOperationEtaMs(selectedHackOperation) : 0;
-  const selectedDefenseProfile = selectedRegion ? getTerritoryDefenseProfile(selectedRegion) : null;
-  const selectedDefenseAssets = Array.isArray(selectedRegion?.defenseAssets) ? selectedRegion.defenseAssets : [];
   const selectedDefenseResponse = selectedRegion?.defenseResponse || null;
   const selectedAttackActionLabel = hasSelectedPreparedAttack
     ? selectedOperationEta > 0 ? "Operacion en curso" : "Resolver operacion"
@@ -659,38 +547,12 @@ export function MapView({
   const selectedHackActionLabel = hasSelectedPreparedHack
     ? selectedHackEta > 0 ? "Hackeo en curso" : "Resolver hackeo"
     : `Hackear sistemas`;
-  const canAffordElectionLevel = Number(player?.level ?? 1) >= PROTOCOL_UNLOCK_LEVEL;
-  const canAffordElectionCredits = Number(playerCredits ?? 0) >= PROTOCOL_CREDIT_COST;
-  const canAffordElectionEnergy = Number(player?.energy ?? 0) >= PROTOCOL_ENERGY_COST;
-  const canStartElection =
-    Boolean(selectedRegion) &&
-    !election?.active &&
-    canAffordElectionLevel &&
-    canAffordElectionCredits &&
-    canAffordElectionEnergy;
-  const selectedTerritoryEconomyBonus = selectedRegion
-    ? getTerritoryEconomyBonus(selectedRegion)
-    : 0;
   const selectedSectorState = selectedRegion ? getSectorVisualState(selectedRegion, playerName) : null;
   const selectedMemoryLines = selectedRegion ? getSectorMemoryLines(selectedRegion) : [];
-  const selectedBattlePreview = canAttackSelected
-    ? getBattlePreview(selectedRegion, player, inventory, mineCount, research, playerName)
-    : null;
   const selectedFortCost = selectedRegion ? getFortCost(selectedRegion) : [];
   const canAffordSelectedFort = canAffordResourceCost(selectedFortCost, inventory);
   const selectedFortIsMaxed = Number(selectedRegion?.fortification ?? 0) >= 100;
   const canBuildSelectedFort = isSelectedMine && canAffordSelectedFort && !selectedFortIsMaxed;
-  const activeTerritorialEvent = territorialWeeklyEvent && !territorialWeeklyEvent.completed && !territorialWeeklyEvent.failed
-    ? territorialWeeklyEvent
-    : null;
-  const eventRegion = activeTerritorialEvent
-    ? regions.find((region) => Number(region.id) === Number(activeTerritorialEvent.territoryId))
-    : null;
-  const eventIsControlled = eventRegion?.controller === playerName;
-  const eventStabilityReady = Number(eventRegion?.stability ?? 0) >= Number(activeTerritorialEvent?.targetStability ?? 70);
-  const eventRewardText = activeTerritorialEvent?.reward?.resources?.length
-    ? formatRewardResources(activeTerritorialEvent.reward.resources)
-    : "creditos y XP";
   const activeFronts = regions.flatMap((region) => {
       const ownCampaign = getCampaignState(region, playerName);
       const enemy = getEnemyCampaignState(region);
@@ -703,22 +565,8 @@ export function MapView({
         : []),
     ];
   }).sort((a, b) => b.progress - a.progress).slice(0, 6);
-  const potentialFronts = regions
-    .filter((region) => region.controller === playerName && !getEnemyCampaignState(region))
-    .map((region) => ({
-      region,
-      risk: Math.round(
-        Number(region.threat ?? 0) * 0.9 +
-        Math.max(0, 100 - Number(region.stability ?? 0)) * 0.35 +
-        Math.max(0, 100 - Number(region.fortification ?? 0)) * 0.18
-      ),
-    }))
-    .filter((front) => front.risk >= 28)
-    .sort((a, b) => b.risk - a.risk)
-    .slice(0, 3);
   const [mapFilter, setMapFilter] = useState("risk");
   const enemyFrontCount = regions.filter((region) => region.controller === playerName && getEnemyCampaignState(region)).length;
-  const ownCampaignCount = regions.filter((region) => region.controller !== playerName && getCampaignState(region, playerName).progress > 0).length;
   const activeOperationCount = regions.filter((region) => {
     const campaign = getCampaignState(region, playerName);
     return Boolean(region.activeOperation || region.sabotageOperation || region.intelOperation || region.hackOperation || campaign.operation || campaign.progress > 0);
