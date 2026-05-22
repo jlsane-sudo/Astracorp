@@ -73,6 +73,7 @@ export const MARKET_MAX_TRADE_UNITS = 250;
 export const MARKET_TRADE_PRICE_STEP = 0.01;
 export const MARKET_BUY_MARKUP = 1.08;
 export const MARKET_SELL_MARKDOWN = 0.78;
+export const CONTRACT_BUY_ARBITRAGE_CAP = 0.9;
 
 export const applyMarketTradePriceImpact = (item, amount = 1, direction = 'sell') => {
   const safeAmount = Math.max(0, Math.floor(Number(amount || 0)));
@@ -1975,8 +1976,17 @@ export const createContractFromTemplate = (template, level, now = Date.now(), pl
       * Number(variant.qtyMult ?? 1)
     )
   );
-  const rewardCredits = round2(
+  const formulaRewardCredits = round2(
     Number(mm.base ?? 1) * qty * Number(template.rewardMult ?? 1.3) * Number(variant.rewardMult ?? 1) * (1 + strategicContractBonus)
+  );
+  const estimatedMarketUnitBuyPrice = round2(
+    Number(mm.price ?? mm.base ?? 1) * MARKET_BUY_MARKUP
+  );
+  const antiArbitrageRewardCap = round2(
+    estimatedMarketUnitBuyPrice * qty * CONTRACT_BUY_ARBITRAGE_CAP
+  );
+  const rewardCredits = round2(
+    Math.min(formulaRewardCredits, antiArbitrageRewardCap)
   );
   const rewardXp = Math.round((Number(template.baseXp ?? 16) + qty * 4 + levelBonus * 3) * Number(variant.xpMult ?? 1));
   const durationMin = Math.max(8, Math.round(Number(template.durationMin ?? 20) * Number(variant.durationMult ?? 1)));

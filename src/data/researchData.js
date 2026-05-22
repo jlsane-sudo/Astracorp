@@ -189,7 +189,7 @@ export const getResearchUpgradeCost = (research, key) => {
     isMaxed,
     credits: isMaxed
       ? 0
-      : upgrade.cost.creditsBase + upgrade.cost.creditsStep * level,
+      : Math.ceil((upgrade.cost.creditsBase + upgrade.cost.creditsStep) * 1.72 ** level),
     timeMin: isMaxed
       ? 0
       : upgrade.cost.timeBaseMin + upgrade.cost.timeStepMin * level,
@@ -197,7 +197,7 @@ export const getResearchUpgradeCost = (research, key) => {
       ? []
       : (upgrade.cost.resources || []).map((resource) => ({
           key: resource.key,
-          amount: resource.base + resource.step * level,
+          amount: Math.ceil((resource.base + resource.step) * 1.55 ** level),
         })),
   };
 };
