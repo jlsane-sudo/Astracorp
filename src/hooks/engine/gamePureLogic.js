@@ -433,6 +433,7 @@ export const buildRemoteSavePayload = (saveData) => ({
   sessionStartedAt: Date.now(),
   lastSessionEventAt: 0,
   lastSectorEventAt: 0,
+  lastAdBoomAt: Number(saveData?.lastAdBoomAt ?? 0),
   activeSectorEvent: null,
   levelMoment: null,
 });
@@ -576,7 +577,10 @@ export const createCycleEvent = (lastEventAt = 0, saveData = {}) => {
   if (saveData?.activeEvent && Number(saveData.activeEvent.expiresAt ?? 0) > now) return null;
   if (now - Number(lastEventAt ?? 0) < 6 * 60 * 1000) return null;
   if (Math.random() > 0.14) return null;
-  const source = randFrom(RANDOM_EVENTS);
+  const adBoomCoolingDown = now - Number(saveData?.lastAdBoomAt ?? 0) < 30 * 60 * 1000;
+  const candidates = RANDOM_EVENTS.filter((event) => !(event?.effect === 'adBoom' && adBoomCoolingDown));
+  if (!candidates.length) return null;
+  const source = randFrom(candidates);
   return filterEventForPlayerLevel(
     { ...source, affectedKeys: getEventImpactedKeys(source.effect) },
     saveData?.player?.level ?? 1
@@ -735,9 +739,11 @@ export const createSessionEvent = (saveData, now = Date.now()) => {
   if (Math.random() > 0.08) return null;
   const playerLevel = Number(saveData?.player?.level ?? 1);
   const lastEventEffect = saveData?.lastSessionEventEffect || saveData?.activeEvent?.effect || null;
+  const adBoomCoolingDown = now - Number(saveData?.lastAdBoomAt ?? 0) < 30 * 60 * 1000;
   const candidates = SESSION_EVENT_TEMPLATES
     .map((template) => filterEventForPlayerLevel(template, playerLevel))
     .filter((template) => template?.effect !== lastEventEffect)
+    .filter((template) => !(template?.effect === 'adBoom' && adBoomCoolingDown))
     .filter(Boolean);
   if (!candidates.length) return null;
   const template = randFrom(candidates);
@@ -2325,6 +2331,7 @@ export const createInitialSave = () => ({
   adBoosts: { ...DEFAULT_AD_BOOSTS },
   lastLoginDate: null,
   lastEventAt: 0,
+  lastAdBoomAt: 0,
   lastSessionEventEffect: null,
   territorialWeeklyEvent: null,
   loginRewards: createInitialLoginRewards(),
@@ -2622,6 +2629,7 @@ export const normalizeSave = (rawSave) => {
     rewardAdsToday: Number(source.rewardAdsToday ?? 0),
     lastRewardAdAt: source.lastRewardAdAt ?? null,
     lastEventAt: Number(source.lastEventAt ?? 0),
+    lastAdBoomAt: Number(source.lastAdBoomAt ?? 0),
     lastSessionEventEffect: source.lastSessionEventEffect ?? null,
     territorialWeeklyEvent: normalizeTerritorialWeeklyEvent(source.territorialWeeklyEvent ?? base.territorialWeeklyEvent, normalizedTerritories, Number(source.day ?? base.day ?? 1)),
     loginRewards: { ...createInitialLoginRewards(), ...(source.loginRewards || {}) },

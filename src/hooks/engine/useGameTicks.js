@@ -278,6 +278,7 @@ export function useGameTicks({
           activeEvent,
           activeEventStats: activeEvent ? { id: activeEvent.id, title: activeEvent.title, contractsDelivered: 0, sales: 0, bonusCredits: 0 } : null,
           lastEventAt: activeEvent ? Date.now() : Number(prev.lastEventAt ?? 0),
+          lastAdBoomAt: activeEvent?.effect === 'adBoom' ? Date.now() : Number(prev.lastAdBoomAt ?? 0),
           adBoomMult: nextAdBoomMult,
           log: territorialOutcome.log,
           note: territorialOutcome.note,
@@ -330,6 +331,7 @@ export function useGameTicks({
             activeEventStats: { id: sessionEvent.id, title: sessionEvent.title, contractsDelivered: 0, sales: 0, bonusCredits: 0 },
             lastSessionEventAt: now,
             lastSessionEventEffect: sessionEvent.effect || null,
+            lastAdBoomAt: sessionEvent.effect === 'adBoom' ? now : Number(next.lastAdBoomAt ?? 0),
             adBoomMult: sessionEvent.effect === 'adBoom' ? 1.8 : Number(next.adBoomMult ?? 1),
           };
         }
