@@ -1716,7 +1716,7 @@ export default function App() {
           onSaveProgress={handleOpenSaveProgress}
           onResetGame={handleResetGame}
           onFillEnergyForTest={actions.fillEnergyForTest}
-          onChangePlanet={() => startTransition(() => setShowPlanetPicker(true))}
+          onChangePlanet={() => setShowPlanetPicker(true)}
           onOpenAds={() => actions.setTab('ads')}
           currentRegion={currentRegion}
           isAuthenticated={Boolean(session)}
@@ -1917,7 +1917,7 @@ export default function App() {
                   onUpgrade={actions.buyHqUpgrade}
                   onTriggerHqAdBoost={actions.triggerHqAdBoost}
                   onRepairIntegrity={actions.repairIntegrity}
-                  onOpenPlanetProject={() => startTransition(() => setShowPlanetPicker(true))}
+                  onOpenPlanetProject={() => setShowPlanetPicker(true)}
                 />
               )}
 
