@@ -1,4 +1,4 @@
-﻿-- AstraCorp - elecciones/protocolos online
+-- AstraCorp - elecciones/protocolos online
 -- Ejecutar preferiblemente el archivo *_BLOCKS.sql por bloques en Supabase SQL Editor.
 
 create table if not exists public.astracorp_elections (

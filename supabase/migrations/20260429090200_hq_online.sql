@@ -1,4 +1,4 @@
-﻿-- AstraCorp - sede e integridad online
+-- AstraCorp - sede e integridad online
 -- Ejecutar preferiblemente el archivo *_BLOCKS.sql por bloques en Supabase SQL Editor.
 
 create table if not exists public.astracorp_hq_events (

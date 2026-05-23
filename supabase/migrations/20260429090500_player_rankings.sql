@@ -1,4 +1,4 @@
-﻿-- AstraCorp - ranking online de jugadores
+-- AstraCorp - ranking online de jugadores
 -- Ejecutar en Supabase SQL Editor.
 
 create or replace function public.rpc_get_player_rankings(p_limit integer default 50)
