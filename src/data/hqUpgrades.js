@@ -94,21 +94,21 @@ export const getHqUpgradeCost = (upgradeKey, level = 0) => {
   const safeLevel = Math.max(0, Number(level || 0));
   const nextLevel = safeLevel + 1;
   const baseCost = Number(upgrade.baseCost || 10);
-  const credits = Math.round(baseCost * 2.35 ** safeLevel);
+  const credits = Math.round(baseCost * 1.45 * 2.8 ** safeLevel);
   const resourcePlan = HQ_RESOURCE_COSTS[upgradeKey] || HQ_RESOURCE_COSTS.logistics_center;
   const resources = [];
 
   if (nextLevel >= 2) {
-    resources.push({ key: resourcePlan.primary, amount: Math.ceil(8 * 1.65 ** safeLevel) });
+    resources.push({ key: resourcePlan.primary, amount: Math.ceil(12 * 1.9 ** safeLevel) });
   }
   if (nextLevel >= 3) {
-    resources.push({ key: resourcePlan.secondary, amount: Math.ceil(4 * 1.6 ** safeLevel) });
+    resources.push({ key: resourcePlan.secondary, amount: Math.ceil(6 * 1.85 ** safeLevel) });
   }
   if (nextLevel >= 4) {
-    resources.push({ key: resourcePlan.advanced, amount: Math.ceil(2 * 1.55 ** safeLevel) });
+    resources.push({ key: resourcePlan.advanced, amount: Math.ceil(4 * 1.75 ** safeLevel) });
   }
   if (nextLevel >= 5) {
-    resources.push({ key: resourcePlan.elite, amount: Math.ceil(4 * 1.5 ** (nextLevel - 5)) });
+    resources.push({ key: resourcePlan.elite, amount: Math.ceil(6 * 1.7 ** (nextLevel - 5)) });
   }
 
   return { credits, resources };
