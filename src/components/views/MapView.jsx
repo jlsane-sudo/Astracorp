@@ -3,7 +3,6 @@ import { useState } from "react";
 import { theme } from "../../theme";
 import { getRegionByTerritoryId, getRegionEconomy } from "../../data/regions";
 import { getPlanetById } from "../../data/planets";
-import { getResearchEffects } from "../../data/researchData";
 import {
   ACTION_ENERGY_COSTS,
   TERRITORY_ATTACK_CREDIT_COST,
@@ -16,7 +15,6 @@ import {
 import {
   DEFENSE_ASSET_TYPES,
   TERRITORY_DEFENSE_RESPONSE_TYPES,
-  getTerritoryDefenseProfile,
   getTerritoryOperationEtaMs,
   getTerritoryOperationProgress,
 } from "../../hooks/engine/gamePureLogic";
@@ -138,17 +136,6 @@ const PLANET_MAP_NOTES = {
   },
 };
 
-function createHexPath(cx, cy, radius = HEX_RADIUS) {
-  const points = Array.from({ length: 6 }, (_, index) => {
-    const angle = ((60 * index) - 30) * (Math.PI / 180);
-    const x = cx + radius * Math.cos(angle);
-    const y = cy + radius * Math.sin(angle);
-    return `${Math.round(x)} ${Math.round(y)}`;
-  });
-
-  return `M${points[0]} L${points.slice(1).join(' L')} Z`;
-}
-
 function pctStyle(value, mode = "good") {
   if (mode === "danger") {
     return value >= 75 ? "#f87171" : value >= 45 ? "#fbbf24" : "#4ade80";
@@ -175,20 +162,10 @@ function formatResourceAmount(amount) {
   return Number(amount || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
 }
 
-function formatRewardResources(resources = []) {
-  return resources.map((resource) => `${resource.amount} ${resource.key}`).join(" + ");
-}
-
 function getShortMapBonusLabel(region) {
   const rate = Number(region?.bonusRate ?? 0) * 100;
   const code = MAP_RESOURCE_CODES[region?.bonusResource] || "BON";
   return rate > 0 ? `+${rate.toLocaleString("es-ES", { maximumFractionDigits: 1 })}% ${code}` : "Sin bonus";
-}
-
-function getTerritoryEconomyBonus(region) {
-  const stabilityBonus = Math.max(0, (Number(region?.stability ?? 0) - 40) / 15000);
-  const fortificationBonus = Math.max(0, Number(region?.fortification ?? 0) / 25000);
-  return Math.round(Math.min(0.01, stabilityBonus + fortificationBonus) * 1000) / 10;
 }
 
 function getStrategicEffectLine(region) {
@@ -221,6 +198,91 @@ function getStrategicTargetScore(region, playerName) {
   return value + vulnerability - hostilePenalty;
 }
 
+function getTerritoryActionSignals(regions = [], playerName = "") {
+  const now = Date.now();
+  const signals = [];
+  regions.forEach((region) => {
+    const isMine = region.controller === playerName;
+    const enemy = getEnemyCampaignState(region);
+    const own = getCampaignState(region, playerName);
+    const defenseCount = Array.isArray(region.defenseAssets) ? region.defenseAssets.length : 0;
+    const threat = Number(region.threat ?? 0);
+    const stability = Number(region.stability ?? 0);
+    const operationChecks = [
+      { key: "conquest", label: "Conquista lista", operation: own.operation || region.activeOperation, action: "Resolver fase de conquista" },
+      { key: "spy", label: "Informe listo", operation: region.intelOperation, action: "Resolver espionaje" },
+      { key: "hack", label: "Hackeo listo", operation: region.hackOperation, action: "Resolver hackeo" },
+      { key: "sabotage", label: "Sabotaje listo", operation: region.sabotageOperation, action: "Resolver sabotaje" },
+    ];
+
+    if (isMine && enemy) {
+      signals.push({
+        id: `front-${region.id}`,
+        tone: "danger",
+        title: "Frente rival activo",
+        text: `${region.regionName}: ${enemy.attackerName} avanza al ${Math.round(enemy.progress)}%.`,
+        action: "Cortar frente",
+        region,
+        priority: 100 + Number(enemy.progress ?? 0),
+      });
+    }
+
+    if (isMine && (threat >= 72 || stability <= 32)) {
+      signals.push({
+        id: `risk-${region.id}`,
+        tone: "danger",
+        title: "Sector en riesgo",
+        text: `${region.regionName}: amenaza ${Math.round(threat)}%, estabilidad ${Math.round(stability)}%.`,
+        action: "Reforzar defensa",
+        region,
+        priority: 85 + threat + Math.max(0, 45 - stability),
+      });
+    } else if (isMine && threat >= 48 && defenseCount <= 1) {
+      signals.push({
+        id: `suspicious-${region.id}`,
+        tone: "warn",
+        title: "Indicios de infiltracion",
+        text: `${region.regionName}: amenaza subiendo y pocas defensas ocultas.`,
+        action: "Instalar defensa",
+        region,
+        priority: 62 + threat,
+      });
+    }
+
+    if (isMine && region.defenseResponse && Number(region.defenseResponse.expiresAt ?? 0) - now < 2 * 60 * 60 * 1000) {
+      signals.push({
+        id: `defense-expiring-${region.id}`,
+        tone: "info",
+        title: "Defensa temporal por caducar",
+        text: `${region.regionName}: ${region.defenseResponse.label || "respuesta defensiva"} termina pronto.`,
+        action: "Revisar sector",
+        region,
+        priority: 50,
+      });
+    }
+
+    if (!isMine) {
+      operationChecks.forEach((item) => {
+        if (!item.operation) return;
+        const eta = getTerritoryOperationEtaMs(item.operation);
+        signals.push({
+          id: `${item.key}-${region.id}`,
+          tone: eta <= 0 ? "success" : "info",
+          title: eta <= 0 ? item.label : "Operacion en preparacion",
+          text: eta <= 0
+            ? `${region.regionName}: ${item.action.toLowerCase()} disponible.`
+            : `${region.regionName}: ${item.action.toLowerCase()} en ${formatEta(eta)}.`,
+          action: eta <= 0 ? item.action : "Ver ETA",
+          region,
+          priority: eta <= 0 ? 78 : 42,
+        });
+      });
+    }
+  });
+
+  return signals.sort((a, b) => b.priority - a.priority).slice(0, 6);
+}
+
 function getFortCost(region) {
   const fort = Math.max(0, Number(region?.fortification ?? 0));
   const tier = Math.floor(fort / 25);
@@ -250,51 +312,6 @@ function formatEta(ms) {
   const minutes = totalMinutes % 60;
   if (hours <= 0) return `${minutes} min`;
   return `${hours} h ${minutes} min`;
-}
-
-function getBattlePreview(region, player, inventory, ownedCount, research, playerName) {
-  if (!region) return null;
-
-  const researchEffects = getResearchEffects(research);
-  const doctrineBonus = Math.max(
-    0,
-    (Number(researchEffects.conquestPowerMult ?? 1) - 1) * 14
-  );
-  const mineralReserve = Math.sqrt(Math.max(0, Number(inventory?.mineral ?? 0)));
-  const attackPower =
-    8 +
-    Number(player?.level ?? 1) * 2.1 +
-    Number(ownedCount ?? 0) * 0.7 +
-    mineralReserve * 1.0 +
-    doctrineBonus;
-  const defensePower = Math.max(
-    8,
-    (region.controller ? 24 : 15) +
-      Number(region?.stability ?? 0) * 0.26 +
-      Number(region?.fortification ?? 0) * 0.34 -
-      Number(region?.threat ?? 0) * 0.05
-  );
-  const campaign = getCampaignState(region, playerName || player?.name);
-  const successChance = Math.max(
-    region.controller ? 8 : 16,
-    Math.min(region.controller ? 62 : 76, 42 + (attackPower - defensePower) * 3.4 + campaign.progress * 0.1)
-  );
-
-  return {
-    attackPower: Math.round(attackPower * 10) / 10,
-    defensePower: Math.round(defensePower * 10) / 10,
-    successChance: Math.round(successChance),
-    campaignProgress: Math.round(campaign.progress),
-    campaignStage: campaign.stage,
-    progressOnWin: region.controller ? 26 : 38,
-    progressOnLoss: region.controller ? 6 : 10,
-    outlook:
-      successChance >= 72
-        ? "Ventana favorable"
-        : successChance >= 48
-          ? "Choque equilibrado"
-          : "Defensa dura",
-  };
 }
 
 function getCampaignStage(progress = 0) {
@@ -348,18 +365,6 @@ function getOperationLabel(type = "conquest") {
   return "Conquista";
 }
 
-function getRegionState(region, playerName) {
-  const isMine = region.controller === playerName;
-  const isFree = !region.controller;
-  const isCurrent = false;
-  return {
-    isMine,
-    isFree,
-    isCurrent,
-    risk: isMine && (region.threat >= 70 || region.stability <= 30),
-  };
-}
-
 function getSectorVisualState(region, playerName) {
   const isMine = region?.controller === playerName;
   const enemyCampaign = getEnemyCampaignState(region);
@@ -401,19 +406,6 @@ function getSectorMemoryLines(region) {
   return lines;
 }
 
-function getFill(region, playerName) {
-  if (region.controller === playerName) return `${region.color}cc`;
-  if (!region.controller) return "rgba(148,163,184,0.28)";
-  return `${region.color}66`;
-}
-
-function getStroke(region, isSelected, playerName) {
-  if (isSelected) return "#f8fafc";
-  if (region.controller === playerName) return "#86efac";
-  if (!region.controller) return "rgba(226,232,240,0.45)";
-  return "rgba(248,113,113,0.7)";
-}
-
 function getAdCooldownLabel(lastRewardAdAt) {
   const lastAt = Number(lastRewardAdAt ?? 0);
   const remaining = lastAt ? AD_REINFORCE_COOLDOWN_MS - (Date.now() - lastAt) : 0;
@@ -427,20 +419,10 @@ export function MapView({
   playerName,
   player,
   inventory,
-  companies = [],
-  territorialWeeklyEvent,
-  research,
-  battle,
-  election,
   playerCredits = 0,
-  rewardAdsToday = 0,
   lastRewardAdAt = null,
-  activeSectorEvent = null,
   onClaimRewardAd,
   onSelect,
-  onRenameTerritory,
-  onResolveSectorEvent,
-  onCloseSectorEvent,
   onBattle,
   onSabotage,
   onSpy,
@@ -451,9 +433,7 @@ export function MapView({
   onDisruptEnemyCampaign,
   onDisruptAllEnemyCampaigns,
   onBuildTerritoryFort,
-  onStartElection,
   onOpenPolitics,
-  onGoWork,
 }) {
   const currentPlanet = getPlanetById(player?.currentPlanet || player?.planet);
   const currentPlanetNote =
@@ -487,9 +467,6 @@ export function MapView({
     : regions[0] || null;
 
   const mineCount = regions.filter((region) => region.controller === playerName).length;
-  const bestBonusRegion = regions
-    .filter((region) => region.controller === playerName && Number(region.bonusRate ?? 0) > 0)
-    .sort((a, b) => Number(b.bonusRate ?? 0) - Number(a.bonusRate ?? 0))[0] || null;
   const avgStability = mineCount
     ? Math.round(
         regions
@@ -552,13 +529,9 @@ export function MapView({
   const selectedIntelOperation = selectedRegion?.intelOperation || null;
   const selectedHackOperation = selectedRegion?.hackOperation || null;
   const selectedOperationEta = selectedOperation ? getTerritoryOperationEtaMs(selectedOperation) : 0;
-  const selectedOperationProgress = selectedOperation ? getTerritoryOperationProgress(selectedOperation) : 0;
   const selectedSabotageEta = selectedSabotageOperation ? getTerritoryOperationEtaMs(selectedSabotageOperation) : 0;
-  const selectedSabotageProgress = selectedSabotageOperation ? getTerritoryOperationProgress(selectedSabotageOperation) : 0;
   const selectedIntelEta = selectedIntelOperation ? getTerritoryOperationEtaMs(selectedIntelOperation) : 0;
   const selectedHackEta = selectedHackOperation ? getTerritoryOperationEtaMs(selectedHackOperation) : 0;
-  const selectedDefenseProfile = selectedRegion ? getTerritoryDefenseProfile(selectedRegion) : null;
-  const selectedDefenseAssets = Array.isArray(selectedRegion?.defenseAssets) ? selectedRegion.defenseAssets : [];
   const selectedDefenseResponse = selectedRegion?.defenseResponse || null;
   const selectedAttackActionLabel = hasSelectedPreparedAttack
     ? selectedOperationEta > 0 ? "Operacion en curso" : "Resolver operacion"
@@ -574,38 +547,12 @@ export function MapView({
   const selectedHackActionLabel = hasSelectedPreparedHack
     ? selectedHackEta > 0 ? "Hackeo en curso" : "Resolver hackeo"
     : `Hackear sistemas`;
-  const canAffordElectionLevel = Number(player?.level ?? 1) >= PROTOCOL_UNLOCK_LEVEL;
-  const canAffordElectionCredits = Number(playerCredits ?? 0) >= PROTOCOL_CREDIT_COST;
-  const canAffordElectionEnergy = Number(player?.energy ?? 0) >= PROTOCOL_ENERGY_COST;
-  const canStartElection =
-    Boolean(selectedRegion) &&
-    !election?.active &&
-    canAffordElectionLevel &&
-    canAffordElectionCredits &&
-    canAffordElectionEnergy;
-  const selectedTerritoryEconomyBonus = selectedRegion
-    ? getTerritoryEconomyBonus(selectedRegion)
-    : 0;
   const selectedSectorState = selectedRegion ? getSectorVisualState(selectedRegion, playerName) : null;
   const selectedMemoryLines = selectedRegion ? getSectorMemoryLines(selectedRegion) : [];
-  const selectedBattlePreview = canAttackSelected
-    ? getBattlePreview(selectedRegion, player, inventory, mineCount, research, playerName)
-    : null;
   const selectedFortCost = selectedRegion ? getFortCost(selectedRegion) : [];
   const canAffordSelectedFort = canAffordResourceCost(selectedFortCost, inventory);
   const selectedFortIsMaxed = Number(selectedRegion?.fortification ?? 0) >= 100;
   const canBuildSelectedFort = isSelectedMine && canAffordSelectedFort && !selectedFortIsMaxed;
-  const activeTerritorialEvent = territorialWeeklyEvent && !territorialWeeklyEvent.completed && !territorialWeeklyEvent.failed
-    ? territorialWeeklyEvent
-    : null;
-  const eventRegion = activeTerritorialEvent
-    ? regions.find((region) => Number(region.id) === Number(activeTerritorialEvent.territoryId))
-    : null;
-  const eventIsControlled = eventRegion?.controller === playerName;
-  const eventStabilityReady = Number(eventRegion?.stability ?? 0) >= Number(activeTerritorialEvent?.targetStability ?? 70);
-  const eventRewardText = activeTerritorialEvent?.reward?.resources?.length
-    ? formatRewardResources(activeTerritorialEvent.reward.resources)
-    : "creditos y XP";
   const activeFronts = regions.flatMap((region) => {
       const ownCampaign = getCampaignState(region, playerName);
       const enemy = getEnemyCampaignState(region);
@@ -618,22 +565,8 @@ export function MapView({
         : []),
     ];
   }).sort((a, b) => b.progress - a.progress).slice(0, 6);
-  const potentialFronts = regions
-    .filter((region) => region.controller === playerName && !getEnemyCampaignState(region))
-    .map((region) => ({
-      region,
-      risk: Math.round(
-        Number(region.threat ?? 0) * 0.9 +
-        Math.max(0, 100 - Number(region.stability ?? 0)) * 0.35 +
-        Math.max(0, 100 - Number(region.fortification ?? 0)) * 0.18
-      ),
-    }))
-    .filter((front) => front.risk >= 28)
-    .sort((a, b) => b.risk - a.risk)
-    .slice(0, 3);
   const [mapFilter, setMapFilter] = useState("risk");
   const enemyFrontCount = regions.filter((region) => region.controller === playerName && getEnemyCampaignState(region)).length;
-  const ownCampaignCount = regions.filter((region) => region.controller !== playerName && getCampaignState(region, playerName).progress > 0).length;
   const activeOperationCount = regions.filter((region) => {
     const campaign = getCampaignState(region, playerName);
     return Boolean(region.activeOperation || region.sabotageOperation || region.intelOperation || region.hackOperation || campaign.operation || campaign.progress > 0);
@@ -677,6 +610,7 @@ export function MapView({
   const controlledStrategicProfiles = regions
     .filter((region) => region.controller === playerName && region.strategicProfile)
     .map((region) => ({ ...region.strategicProfile, regionName: region.regionName }));
+  const territorySignals = getTerritoryActionSignals(regions, playerName);
   const recommendedTarget = [...regions]
     .filter((region) => region.controller !== playerName)
     .map((region) => ({ region, score: getStrategicTargetScore(region, playerName) }))
@@ -800,6 +734,29 @@ export function MapView({
                   <strong>{operation.title}</strong>
                   <span>{operation.region.regionName}</span>
                   <span>{operation.eta > 0 ? formatEta(operation.eta) : `${Math.round(operation.progress)}%`}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {territorySignals.length > 0 && (
+          <div style={styles.territorySignalPanel}>
+            <div style={styles.operationQueueHeader}>Alertas territoriales accionables</div>
+            <div style={styles.territorySignalGrid}>
+              {territorySignals.map((signal) => (
+                <button
+                  key={signal.id}
+                  type="button"
+                  onClick={() => onSelect?.(signal.region)}
+                  style={{
+                    ...styles.territorySignalItem,
+                    borderColor: signal.tone === "danger" ? "rgba(248,113,113,0.32)" : signal.tone === "success" ? "rgba(74,222,128,0.28)" : "rgba(34,211,238,0.22)",
+                    background: signal.tone === "danger" ? "rgba(127,29,29,0.16)" : signal.tone === "success" ? "rgba(20,83,45,0.13)" : "rgba(8,47,73,0.16)",
+                  }}
+                >
+                  <strong>{signal.title}</strong>
+                  <span>{signal.text}</span>
+                  <em>{signal.action}</em>
                 </button>
               ))}
             </div>
@@ -1030,719 +987,6 @@ export function MapView({
           </div>
         )}
       </div>
-    </div>
-  );
-
-  return (
-    <div style={styles.wrapper}>
-      <div style={styles.intro}>
-        <div style={styles.introBadge}>CARTOGRAFIA REGIONAL</div>
-        <div style={styles.title}>{currentPlanetNote.title} - Mapa territorial</div>
-        <div style={styles.text}>{currentPlanetNote.detail}</div>
-        <div style={styles.planetFlavor}>{currentPlanetNote.favored}</div>
-      </div>
-
-      <div style={styles.tipBox}>
-        <div style={styles.tipText}>
-          Reforzar un sector cuesta <strong>{REINFORCE_COST} creditos</strong> y sabotear uno hostil cuesta{" "}
-          <strong>{SABOTAGE_COST} creditos</strong>.
-        </div>
-
-        <button style={styles.workBtn} onClick={onGoWork}>
-          Ir a trabajo
-        </button>
-      </div>
-
-      <div style={styles.summaryGrid}>
-        <MiniPanel
-          title="Sectores tuyos"
-          value={`${mineCount}`}
-          subtitle="Cuantos mas controles, mas presion tendras que sostener."
-          color={theme.colors.cyan}
-        />
-        <MiniPanel
-          title="Estabilidad media"
-          value={`${avgStability}%`}
-          subtitle="Pulso general de tus regiones."
-          color={pctStyle(avgStability)}
-        />
-        <MiniPanel
-          title="Sectores en riesgo"
-          value={`${riskCount}`}
-          subtitle="Requieren refuerzo o podrias perderlos."
-          color={riskCount > 0 ? theme.colors.amber : "#4ade80"}
-        />
-        <MiniPanel
-          title="Frentes"
-          value={`${activeFronts.length}`}
-          subtitle={activeFronts.length ? "Operaciones abiertas ahora." : `${potentialFronts.length} sector(es) vigilados.`}
-          color={activeFronts.length ? "#f87171" : theme.colors.cyan}
-        />
-        <MiniPanel
-          title="Mejor bonus"
-          value={bestBonusRegion?.regionName || "Sin bonus"}
-          subtitle={bestBonusRegion ? getShortMapBonusLabel(bestBonusRegion) : "Controla sectores para activar bonus"}
-          color={theme.colors.violet}
-        />
-      </div>
-
-      <div style={styles.adReinforcePanel}>
-        <div>
-          <div style={styles.adReinforceKicker}>BLINDAJE PUBLICITARIO</div>
-          <div style={styles.adReinforceTitle}>Reforzar todos tus sectores al maximo</div>
-          <div style={styles.adReinforceText}>
-            Pone estabilidad al 100%, amenaza a 0% y fortificacion al 100% en todos tus sectores.
-            Consume una emision diaria de publicidad.
-          </div>
-        </div>
-        <button
-          style={{
-            ...styles.adReinforceBtn,
-            ...(!canReinforceAllWithAd ? styles.disabledBtn : {}),
-          }}
-          onClick={() => {
-            onReinforceAllWithAd?.();
-          }}
-          disabled={!canReinforceAllWithAd}
-          title={
-            canReinforceAllWithAd
-              ? `Reforzar ${ownedNeedingMax} sector(es)`
-              : ownedNeedingMax <= 0
-                ? "No hay sectores tuyos que reforzar"
-                : `Espera ${adCooldownLabel}`
-          }
-        >
-          {canReinforceAllWithAd
-            ? `Ver anuncio y blindar ${ownedNeedingMax}`
-            : ownedNeedingMax <= 0
-              ? "Todo al maximo"
-              : `Espera ${adCooldownLabel}`}
-        </button>
-      </div>
-
-      {activeTerritorialEvent && eventRegion && (
-        <div style={styles.weeklyEventPanel}>
-          <div>
-            <div style={styles.weeklyEventKicker}>FOCO SEMANAL TERRITORIAL</div>
-            <div style={styles.weeklyEventTitle}>{activeTerritorialEvent.title}</div>
-            <div style={styles.weeklyEventText}>{activeTerritorialEvent.desc}</div>
-          </div>
-
-          <div style={styles.weeklyEventMetaGrid}>
-            <QuickFact label="Objetivo" value={eventIsControlled && eventStabilityReady ? "Listo para cerrar" : `Control + ${activeTerritorialEvent.targetStability}% estabilidad`} />
-            <QuickFact label="Estado" value={eventIsControlled ? `${Math.round(eventRegion.stability)}% estabilidad` : `Lo controla ${eventRegion.controller || "nadie"}`} />
-            <QuickFact label="Recompensa" value={`+${activeTerritorialEvent.reward?.credits ?? 0} cr + ${activeTerritorialEvent.reward?.xp ?? 0} XP + ${eventRewardText}`} />
-            <QuickFact label="Cierra" value={`Dia ${activeTerritorialEvent.endsDay}`} />
-          </div>
-
-          <button style={styles.weeklyEventButton} onClick={() => onSelect?.(eventRegion)}>
-            Ver territorio objetivo
-          </button>
-        </div>
-      )}
-
-      {activeSectorEvent && Number(activeSectorEvent.expiresAt ?? 0) > Date.now() && (
-        <div style={styles.sectorEventPanel}>
-          <div>
-            <div style={styles.sectorEventKicker}>EVENTO DE SECTOR</div>
-            <div style={styles.sectorEventTitle}>{activeSectorEvent.title}</div>
-            <div style={styles.sectorEventText}>{activeSectorEvent.desc}</div>
-          </div>
-          <div style={styles.sectorEventActions}>
-            <button type="button" style={styles.sectorEventButton} onClick={() => onSelect?.(regions.find((region) => Number(region.id) === Number(activeSectorEvent.territoryId)))}>
-              Ver sector
-            </button>
-            <button type="button" style={styles.sectorEventButtonPrimary} onClick={() => onResolveSectorEvent?.()}>
-              Enviar recursos
-            </button>
-            <button type="button" style={styles.sectorEventGhost} onClick={() => onCloseSectorEvent?.()}>
-              Ignorar
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div style={styles.frontPanel}>
-        <div style={styles.frontPanelHeader}>
-          <div>
-            <div style={styles.frontTitle}>Frentes activos</div>
-            <div style={styles.frontSub}>Operaciones tuyas y movimientos rivales que conviene vigilar.</div>
-          </div>
-          <div style={styles.frontCount}>{activeFronts.length}</div>
-        </div>
-        <div style={styles.frontList}>
-          {activeFronts.length === 0 ? (
-            potentialFronts.length === 0 ? (
-              <div style={styles.frontEmpty}>
-                No hay operaciones abiertas ni sectores con riesgo alto ahora mismo.
-              </div>
-            ) : (
-              potentialFronts.map((front) => (
-                <button key={`potential-${front.region.id}`} style={styles.frontItem} onClick={() => onSelect?.(front.region)}>
-                  <div>
-                    <div style={styles.frontName}>{front.region.regionName}</div>
-                    <div style={styles.frontMeta}>Vigilancia rival potencial</div>
-                  </div>
-                  <div style={styles.frontStats}>
-                    <span>Riesgo</span>
-                    <span>{front.risk}%</span>
-                  </div>
-                  <div style={styles.frontAction}>Vigilar</div>
-                </button>
-              ))
-            )
-          ) : activeFronts.map((front) => (
-            <button key={front.id} style={styles.frontItem} onClick={() => onSelect?.(front.region)}>
-              <div>
-                <div style={styles.frontName}>{front.region.regionName}</div>
-                <div style={styles.frontMeta}>{front.title} - {front.actor}</div>
-              </div>
-              <div style={styles.frontStats}>
-                <span>{front.stage.label}</span>
-                <span>{Math.round(front.progress)}%</span>
-              </div>
-              <div style={{
-                ...styles.frontAction,
-                ...(front.type === "enemy" ? styles.frontActionDanger : {}),
-              }}>
-                {front.type === "enemy" ? "Defender" : "Continuar"}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={styles.mapShell}>
-        <div style={styles.mapCard}>
-          <div style={styles.mapCardHeader}>
-            <div>
-              <div style={styles.mapCardTitle}>Plano tactico del planeta</div>
-              <div style={styles.mapCardSub}>
-                El mapa reacciona al pasar el raton o al pulsar cada territorio.
-              </div>
-            </div>
-
-            <div style={styles.legendRow}>
-              <LegendChip label="Tuyo" color="#86efac" />
-              <LegendChip label="Neutral" color="#cbd5e1" />
-              <LegendChip label="Hostil" color="#fca5a5" />
-              <LegendChip label="Frente rival" color="#f87171" />
-              <LegendChip label="Operacion" color="#67e8f9" />
-            </div>
-          </div>
-
-          <div style={styles.mapCanvas}>
-            <svg
-              viewBox="0 0 760 530"
-              style={styles.mapSvg}
-              role="img"
-              aria-label={`Mapa de ${currentPlanetNote.title}`}
-            >
-              <defs>
-                <linearGradient id="astraBg" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#06111d" />
-                  <stop offset="55%" stopColor="#0a1224" />
-                  <stop offset="100%" stopColor="#120c22" />
-                </linearGradient>
-                <radialGradient id="planetGlow" cx="50%" cy="45%" r="75%">
-                  <stop offset="0%" stopColor="rgba(34,211,238,0.15)" />
-                  <stop offset="65%" stopColor="rgba(168,85,247,0.07)" />
-                  <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-                </radialGradient>
-              </defs>
-
-              <rect x="0" y="0" width="780" height="500" rx="28" fill="url(#astraBg)" />
-              <circle cx="384" cy="248" r="208" fill="url(#planetGlow)" />
-              <path
-                d="M124 86 C228 30, 554 36, 672 130 C734 180, 734 330, 636 412 C536 490, 250 488, 130 420 C38 368, 24 184, 124 86 Z"
-                fill="rgba(255,255,255,0.025)"
-                stroke="rgba(255,255,255,0.06)"
-                strokeWidth="2"
-              />
-
-              {regions.map((region) => {
-                const isSelected = selectedRegion?.id === region.id;
-                const isEventTarget = Number(activeTerritorialEvent?.territoryId) === Number(region.id);
-                const state = getRegionState(region, playerName);
-                const mapShape = region.mapShape || MAP_SHAPES[region.id];
-                const enemyFront = getEnemyCampaignState(region);
-                const ownFront = getCampaignState(region, playerName);
-                const visualState = getSectorVisualState(region, playerName);
-
-                if (!mapShape) return null;
-
-                return (
-                  <g
-                    key={region.id}
-                    onClick={() => onSelect?.(region)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <path
-                      d={createHexPath(mapShape.cx, mapShape.cy)}
-                      fill={getFill(region, playerName)}
-                      stroke={isEventTarget ? "#fde68a" : getStroke(region, isSelected, playerName)}
-                      strokeWidth={isEventTarget ? 4.6 : isSelected ? 4 : 2.4}
-                      opacity={state.risk ? 0.98 : 0.9}
-                    />
-                    <circle
-                      cx={mapShape.cx}
-                      cy={mapShape.cy}
-                      r={state.risk ? 9 : 7}
-                      fill={state.risk ? "#f87171" : region.controller === playerName ? "#4ade80" : !region.controller ? "#cbd5e1" : "#fbbf24"}
-                      stroke="rgba(15,23,42,0.9)"
-                      strokeWidth="3"
-                    />
-                    {(enemyFront || ownFront.progress > 0) && (
-                      <circle
-                        cx={mapShape.cx + 26}
-                        cy={mapShape.cy - 28}
-                        r="10"
-                        fill={enemyFront ? "#ef4444" : "#22d3ee"}
-                        stroke="rgba(15,23,42,0.9)"
-                        strokeWidth="3"
-                      />
-                    )}
-                    <text
-                      x={mapShape.cx}
-                      y={mapShape.cy - 18}
-                      textAnchor="middle"
-                      style={styles.mapLabel}
-                    >
-                      {MAP_LABELS[region.id] || region.regionName}
-                    </text>
-                    <text
-                      x={mapShape.cx}
-                      y={mapShape.cy + 22}
-                      textAnchor="middle"
-                      style={styles.mapSubLabel}
-                    >
-                      {getShortMapBonusLabel(region)}
-                    </text>
-                    <text
-                      x={mapShape.cx}
-                      y={mapShape.cy + 38}
-                      textAnchor="middle"
-                      style={{ ...styles.mapStateLabel, fill: visualState.color }}
-                    >
-                      {visualState.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        </div>
-
-        {selectedRegion && (
-          <div style={styles.detailCard}>
-            <div style={styles.detailHeader}>
-              <div>
-                <div style={styles.detailTitle}>
-                  {selectedRegion.regionIcon} {selectedRegion.regionName}
-                </div>
-                <div style={styles.detailSub}>
-                  {selectedRegion.regionKind}
-                  {selectedRegion.customName ? ` - nombre oficial: ${selectedRegion.officialName}` : ''}
-                </div>
-              </div>
-
-              <div style={styles.detailBonusBadge}>{selectedRegion.regionBonusLabel}</div>
-            </div>
-
-            <div style={styles.statusLine}>
-              <span>Dominio actual</span>
-              <strong>{selectedRegion.controller || "Ninguno"}</strong>
-            </div>
-
-            {selectedSectorState && (
-              <div style={styles.sectorStateBox}>
-                <div>
-                  <div style={styles.sectorStateKicker}>Estado del sector</div>
-                  <div style={{ ...styles.sectorStateTitle, color: selectedSectorState.color }}>
-                    {selectedSectorState.label}
-                  </div>
-                </div>
-                <div style={styles.sectorStateText}>{selectedSectorState.detail}</div>
-              </div>
-            )}
-
-            <div style={styles.detailText}>{selectedRegion.regionDescription}</div>
-
-            {selectedMemoryLines.length > 0 && (
-              <div style={styles.memoryBox}>
-                <div style={styles.memoryTitle}>Memoria del sector</div>
-                <div style={styles.memoryGrid}>
-                  {selectedMemoryLines.map((line) => (
-                    <span key={line}>{line}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {isSelectedMine && (
-              <div style={styles.localInvestmentBox}>
-                <div>
-                  <div style={styles.localInvestmentTitle}>Inversion local</div>
-                  <div style={styles.localInvestmentText}>
-                    Mientras controles este sector, su recurso puede aportar bonus a tu red industrial.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  style={styles.renameBtn}
-                  onClick={() => {
-                    const nextName = window.prompt("Nombre del sector", selectedRegion.customName || selectedRegion.officialName);
-                    if (nextName === null) return;
-                    onRenameTerritory?.(selectedRegion.id, nextName);
-                  }}
-                >
-                  Renombrar
-                </button>
-              </div>
-            )}
-
-            {selectedRegion.lastPressureAttacker && (
-              <div style={styles.pressureBox}>
-                <div style={styles.pressureTitle}>Frente activo</div>
-                <div style={styles.pressureText}>
-                  {selectedRegion.lastPressureAttacker} presiono este sector recientemente:
-                  +{formatResourceAmount(selectedRegion.lastPressureThreat)} amenaza
-                  {Number(selectedRegion.lastPressureStabilityLoss || 0) > 0
-                    ? ` - -${formatResourceAmount(selectedRegion.lastPressureStabilityLoss)} estabilidad`
-                    : ''}.
-                </div>
-              </div>
-            )}
-
-            {isSelectedMine && (
-              <div style={styles.controlBonusBox}>
-                Control activo: las empresas de este recurso pueden recibir un bonus territorial de
-                <strong> +{selectedTerritoryEconomyBonus}%</strong>.
-              </div>
-            )}
-
-            {selectedEnemyCampaign && isSelectedMine && (
-              <div style={styles.enemyCampaignBox}>
-                <div style={styles.enemyCampaignTop}>
-                  <div>
-                    <div style={styles.enemyCampaignKicker}>Frente rival</div>
-                    <div style={styles.enemyCampaignTitle}>{selectedEnemyCampaign.attackerName}</div>
-                  </div>
-                  <strong>{Math.round(selectedEnemyCampaign.progress)}%</strong>
-                </div>
-                <MiniBar value={selectedEnemyCampaign.progress} mode="danger" />
-                <div style={styles.enemyCampaignText}>
-                  Fase: {selectedEnemyCampaign.stage.label}. Si llega al 100%, el sector cae en manos rivales.
-                </div>
-                <button
-                  style={styles.enemyCampaignBtn}
-                  onClick={() => onDisruptEnemyCampaign?.(selectedRegion.id)}
-                >
-                  Cortar suministros (-6 cr)
-                </button>
-              </div>
-            )}
-            {isSelectedMine && (
-              <div style={styles.fortBox}>
-                <div style={styles.fortTitle}>Red defensiva oculta</div>
-                <div style={styles.fortText}>
-                  {selectedFortIsMaxed
-                    ? "Fortificacion maxima alcanzada."
-                    : `Coste: ${formatCost(selectedFortCost)}. Instala o mejora un activo oculto contra ataques fisicos, hackers, espias o presion legal.`}
-                </div>
-              </div>
-            )}
-
-            {isSelectedMine && selectedDefenseProfile && (
-              <div style={styles.intelBox}>
-                <div style={styles.intelTop}>
-                  <div>
-                    <div style={styles.intelKicker}>Defensas ocultas</div>
-                    <div style={styles.intelTitle}>{selectedDefenseAssets.length || 0} activos instalados</div>
-                  </div>
-                  <strong>Caja negra</strong>
-                </div>
-                <div style={styles.defenseGrid}>
-                  <QuickFact label="Fisica" value={`${selectedDefenseProfile.physical}%`} />
-                  <QuickFact label="Hackers" value={`${selectedDefenseProfile.cyber}%`} />
-                  <QuickFact label="Espias" value={`${selectedDefenseProfile.counterIntel}%`} />
-                  <QuickFact label="Legal" value={`${selectedDefenseProfile.legal}%`} />
-                  <QuickFact label="Social" value={`${selectedDefenseProfile.social}%`} />
-                  <QuickFact label="Economica" value={`${selectedDefenseProfile.economic}%`} />
-                </div>
-                {selectedDefenseAssets.length > 0 && (
-                  <div style={styles.assetList}>
-                    {selectedDefenseAssets.slice(0, 6).map((asset) => (
-                      <span key={`${asset.type}-${asset.level}`} style={styles.assetPill}>
-                        {DEFENSE_ASSET_TYPES[asset.type]?.label || asset.type} {asset.level}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div style={styles.metricPanelGrid}>
-              <MetricPanel
-                title="Estabilidad"
-                value={`${Math.round(selectedRegion.stability)}%`}
-                helper="Si baja demasiado, el sector se vuelve fragil."
-                progress={selectedRegion.stability}
-                mode="good"
-              />
-              <MetricPanel
-                title="Amenaza"
-                value={`${Math.round(selectedRegion.threat)}%`}
-                helper="Sube con el tiempo y puede forzar la perdida del control."
-                progress={selectedRegion.threat}
-                mode="danger"
-              />
-              <MetricPanel
-                title="Fortificacion"
-                value={`${Math.round(selectedRegion.fortification)}%`}
-                helper="Reduce la presion futura y mejora el bonus territorial."
-                progress={selectedRegion.fortification}
-                mode="good"
-              />
-            </div>
-
-            {selectedBattlePreview && (
-              <div style={styles.tacticalBox}>
-                <div style={styles.tacticalHeader}>
-                  <span>Lectura tactica</span>
-                  <strong>{selectedBattlePreview.outlook}</strong>
-                </div>
-
-                <div style={styles.tacticalGrid}>
-                  <QuickFact label="Exito" value={`${selectedBattlePreview.successChance}%`} />
-                  <QuickFact label="Ataque" value={`${selectedBattlePreview.attackPower}`} />
-                  <QuickFact label="Defensa" value={`${selectedBattlePreview.defensePower}`} />
-                </div>
-
-                <div style={styles.tacticalText}>
-                  La defensa depende de la estabilidad y la fortificacion reales. Si el sector es
-                  hostil, puedes sabotearlo antes de lanzar la ofensiva.
-                </div>
-              </div>
-            )}
-
-            {selectedBattlePreview && selectedCampaign && (
-              <div style={styles.campaignBox}>
-                <div style={styles.campaignTop}>
-                  <div>
-                    <div style={styles.campaignKicker}>Operacion territorial</div>
-                    <div style={styles.campaignTitle}>
-                      {selectedOperation
-                        ? selectedOperationEta > 0 ? "Preparacion en curso" : "Lista para resolver"
-                        : selectedCampaign.stage.label}
-                    </div>
-                  </div>
-                  <strong>{selectedOperation ? `${Math.round(selectedOperationProgress)}%` : `${Math.round(selectedCampaign.progress)}%`}</strong>
-                </div>
-                <MiniBar value={selectedOperation ? selectedOperationProgress : selectedCampaign.progress} />
-                <div style={styles.campaignText}>
-                  {selectedOperation
-                    ? selectedOperationEta > 0
-                      ? `Resolucion disponible en ${formatEta(selectedOperationEta)}. El rival no ve tu poder real salvo que tenga inteligencia previa.`
-                      : "La operacion ya esta lista: pulsa resolver para intentar avanzar la conquista."
-                    : `Siguiente fase: ${selectedCampaign.stage.next}. Cada fase se prepara durante horas antes de resolverse.`}
-                </div>
-              </div>
-            )}
-
-            {!isSelectedMine && selectedSabotageOperation && (
-              <div style={styles.campaignBox}>
-                <div style={styles.campaignTop}>
-                  <div>
-                    <div style={styles.campaignKicker}>Sabotaje encubierto</div>
-                    <div style={styles.campaignTitle}>{selectedSabotageEta > 0 ? "Preparando celula" : "Listo para detonar"}</div>
-                  </div>
-                  <strong>{Math.round(selectedSabotageProgress)}%</strong>
-                </div>
-                <MiniBar value={selectedSabotageProgress} mode="danger" />
-                <div style={styles.campaignText}>
-                  {selectedSabotageEta > 0
-                    ? `Faltan ${formatEta(selectedSabotageEta)}. Si la defensa rival tiene informantes o ciberseguridad, el efecto bajara.`
-                    : "Pulsa sabotear para resolver la operacion y ver si abre una brecha real."}
-                </div>
-              </div>
-            )}
-
-            <div style={styles.quickFacts}>
-              <QuickFact label="Economia" value={selectedRegion.regionBonusLabel} />
-              <QuickFact
-                label="Riesgo"
-                value={
-                  selectedRegion.threat >= 70 || selectedRegion.stability <= 30
-                    ? "Critico"
-                    : selectedRegion.threat >= 45 || selectedRegion.stability <= 50
-                      ? "Tenso"
-                      : "Controlado"
-                }
-              />
-              <QuickFact
-                label="Coste refuerzo"
-                value={`${REINFORCE_COST} cr`}
-              />
-              <QuickFact
-                label="Coste ofensiva"
-                value={`${ATTACK_ENERGY_COST} EN - ${ATTACK_CREDIT_COST} cr`}
-              />
-            </div>
-
-            <div style={styles.actions}>
-              {isSelectedMine ? (
-                <>
-                  <button
-                    style={{
-                      ...styles.fortBtn,
-                      ...(!canBuildSelectedFort ? styles.disabledBtn : {}),
-                    }}
-                    onClick={() => onBuildTerritoryFort?.(selectedRegion.id)}
-                    disabled={!canBuildSelectedFort}
-                    title={selectedFortIsMaxed ? "Fortificacion maxima" : formatCost(selectedFortCost)}
-                  >
-                    {selectedFortIsMaxed ? "Red maxima" : "Instalar defensa"}
-                  </button>
-
-                  <button
-                    style={{
-                      ...styles.secondaryBtn,
-                      ...(!canAffordReinforce ? styles.disabledBtn : {}),
-                    }}
-                    onClick={() => onReinforce?.(selectedRegion.id)}
-                    disabled={!canAffordReinforce}
-                  >
-                    Reforzar (-{REINFORCE_COST})
-                  </button>
-                </>
-              ) : canAttackSelected ? (
-                <button
-                  style={{
-                    ...styles.attackBtn,
-                    ...(!canLaunchAttack ? styles.disabledBtn : {}),
-                  }}
-                  onClick={() => onBattle(selectedRegion)}
-                  disabled={!canLaunchAttack}
-                  title={
-                    canLaunchAttack
-                      ? "Lanzar ofensiva"
-                      : !canAffordAttackEnergy
-                        ? `Necesitas ${ATTACK_ENERGY_COST} de energia`
-                        : `Necesitas ${ATTACK_CREDIT_COST} creditos`
-                  }
-                >
-                  {canLaunchAttack
-                    ? selectedOperation
-                      ? selectedOperationEta > 0 ? "Operacion en curso" : "Resolver operacion"
-                      : selectedCampaign?.progress > 0 ? "Preparar siguiente fase" : "Preparar conquista"
-                    : !canAffordAttackEnergy
-                      ? "Falta energia"
-                      : "Falta credito"}
-                </button>
-              ) : (
-                <button style={styles.neutralBtn} disabled>
-                  Region neutral
-                </button>
-              )}
-
-              {!isSelectedMine && selectedRegion.controller ? (
-                <button
-                  style={{
-                    ...styles.secondaryBtn,
-                    ...(!canLaunchSabotage ? styles.disabledBtn : {}),
-                  }}
-                  onClick={() => onSabotage?.(selectedRegion.id)}
-                  disabled={!canLaunchSabotage}
-                >
-                  {selectedSabotageOperation
-                    ? selectedSabotageEta > 0 ? "Sabotaje en curso" : "Resolver sabotaje"
-                    : `Preparar sabotaje (-${SABOTAGE_COST})`}
-                </button>
-              ) : null}
-
-              <button
-                style={{
-                  ...styles.voteBtn,
-                  ...(!canStartElection ? styles.disabledBtn : {}),
-                }}
-                onClick={() => onStartElection(selectedRegion.id)}
-                disabled={!canStartElection}
-                title={
-                  election?.active
-                    ? "Ya hay un protocolo activo"
-                    : !canAffordElectionLevel
-                      ? `Necesitas nivel ${PROTOCOL_UNLOCK_LEVEL}`
-                    : !canAffordElectionEnergy
-                      ? `Necesitas ${PROTOCOL_ENERGY_COST} de energia`
-                      : !canAffordElectionCredits
-                        ? `Necesitas ${PROTOCOL_CREDIT_COST} creditos`
-                        : "Convocar protocolo"
-                }
-              >
-                {election?.active
-                  ? "Protocolo en curso"
-                  : !canAffordElectionLevel
-                    ? `Nivel ${PROTOCOL_UNLOCK_LEVEL}`
-                  : !canAffordElectionEnergy
-                    ? "Falta energia"
-                    : !canAffordElectionCredits
-                      ? "Faltan creditos"
-                      : "Iniciar protocolo"}
-              </button>
-            </div>
-
-            <details style={styles.detailDisclosure}>
-              <summary style={styles.detailDisclosureSummary}>Ayuda y reglas del sector</summary>
-              <div style={styles.helperList}>
-                <HelperItem text="Pulsa una zona del mapa para cambiar el foco." />
-                <HelperItem text="Los sectores tuyos con amenaza alta o estabilidad baja entran en riesgo." />
-                <HelperItem text="Defender bien una zona aumenta su valor economico." />
-                <HelperItem text="Sabotear reduce estabilidad y fortificacion del enemigo antes del ataque." />
-                {!canLaunchAttack && canAttackSelected ? (
-                  <HelperItem
-                    text={
-                      !canAffordAttackEnergy
-                        ? `Te faltan ${ATTACK_ENERGY_COST} de energia para iniciar la ofensiva.`
-                        : `Necesitas al menos ${ATTACK_CREDIT_COST} creditos para lanzar la ofensiva.`
-                    }
-                  />
-                ) : null}
-                {!canStartElection && selectedRegion ? (
-                  <HelperItem
-                    text={
-                      election?.active
-                        ? "Ya hay un protocolo activo en otro sector."
-                        : !canAffordElectionLevel
-                          ? `Necesitas nivel ${PROTOCOL_UNLOCK_LEVEL} para abrir la via politica.`
-                        : !canAffordElectionEnergy
-                          ? `Te faltan ${PROTOCOL_ENERGY_COST} de energia para iniciar el protocolo.`
-                          : `Necesitas ${PROTOCOL_CREDIT_COST} creditos para iniciar el protocolo.`
-                    }
-                  />
-                ) : null}
-                {canStartElection ? (
-                  <HelperItem text="El protocolo sirve para disputar control politico sin lanzar una ofensiva directa." />
-                ) : null}
-              </div>
-            </details>
-          </div>
-        )}
-      </div>
-
-      {battle && (
-        <div style={styles.battle}>
-          {battle.win ? (
-            <div style={styles.win}>
-              {battle.campaignCompleted
-                ? `Victoria orbital - +${battle.rew} creditos`
-                : `Operacion avanzada - ${Math.round(battle.progress || 0)}%`}
-            </div>
-          ) : (
-            <div style={styles.lose}>Derrota tactica - inteligencia de operacion {Math.round(battle.progress || 0)}%</div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -2019,6 +1263,30 @@ const styles = {
     color: "#e0f2fe",
     borderRadius: 8,
     padding: "7px 8px",
+    fontSize: 11,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  territorySignalPanel: {
+    display: "grid",
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    background: "rgba(15,23,42,0.58)",
+    border: "1px solid rgba(251,191,36,0.18)",
+  },
+  territorySignalGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: 7,
+  },
+  territorySignalItem: {
+    display: "grid",
+    gap: 3,
+    border: "1px solid rgba(34,211,238,0.16)",
+    color: "#e2e8f0",
+    borderRadius: 8,
+    padding: "8px 9px",
     fontSize: 11,
     textAlign: "left",
     cursor: "pointer",
@@ -2977,9 +2245,3 @@ const styles = {
 };
 
 export default MapView;
-
-
-
-
-
-

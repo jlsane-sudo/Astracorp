@@ -1,4 +1,4 @@
-﻿-- AstraCorp - mercado global multijugador online
+-- AstraCorp - mercado global multijugador online
 -- Ejecutar en Supabase SQL Editor.
 
 create table if not exists public.game_saves (

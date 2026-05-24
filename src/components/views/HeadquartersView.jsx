@@ -1,7 +1,8 @@
 ﻿import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { HQ_UPGRADE_LIST, getHqEffects, getHqUpgradeCost, getHqUpgradeTimeMin } from '../../data/hqUpgrades';
+import { HQ_UPGRADE_LIST, getHqUpgradeCost, getHqUpgradeTimeMin } from '../../data/hqUpgrades';
 import { PLANETS, getPlanetById, getPlanetUnlockStatus } from '../../data/planets';
+import { getProgressionStats } from '../../utils/progressionStats';
 
 const styles = {
   wrap: { display: 'grid', gap: 14 },
@@ -136,7 +137,6 @@ const formatNumber = (value, max = 2) =>
     maximumFractionDigits: max,
   });
 
-const formatPct = (value) => `${formatNumber(value * 100, 0)}%`;
 const formatProgress = (value, target) => `${formatNumber(value, 0)}/${formatNumber(target, 0)}`;
 const formatDuration = (ms) => {
   const totalSeconds = Math.max(0, Math.ceil(Number(ms || 0) / 1000));
@@ -160,27 +160,8 @@ const formatResourceName = (key) => ({
   habitat_modules: 'Habitats',
 }[key] || key);
 
-const formatCostResources = (resources = [], inventory = {}) => {
-  if (!resources.length) return 'Sin productos';
-  return resources
-    .map((item) => {
-      const owned = Number(inventory?.[item.key] ?? 0);
-      const missing = owned < Number(item.amount ?? 0);
-      return `${item.amount} ${item.key}${missing ? ` (${formatNumber(owned, 0)})` : ''}`;
-    })
-    .join(' + ');
-};
-
 const canAffordResources = (resources = [], inventory = {}) =>
   resources.every((item) => Number(inventory?.[item.key] ?? 0) >= Number(item.amount ?? 0));
-
-const getIntegrityState = (healthValue) => {
-  const health = Math.max(0, Math.min(100, Number(healthValue ?? 100)));
-  if (health < 25) return { label: 'Critica', color: '#f87171', text: 'No puedes conquistar y los trabajos son mucho mas lentos.' };
-  if (health < 45) return { label: 'Danada', color: '#fb7185', text: 'Conquistas y trabajos reciben penalizacion fuerte.' };
-  if (health < 70) return { label: 'Tocada', color: '#fbbf24', text: 'Hay una penalizacion ligera en operaciones.' };
-  return { label: 'Estable', color: '#4ade80', text: 'Sin penalizaciones de integridad.' };
-};
 
 const getIntegrityRepairPreview = (player = {}) => {
   const health = Math.max(0, Math.min(100, Number(player?.health ?? 100)));
@@ -203,7 +184,7 @@ const getIntegrityRepairPreview = (player = {}) => {
 export function HeadquartersView({ hq = {}, player, inventory = {}, hqProjects = null, save = null, onUpgrade, onTriggerHqAdBoost, onRepairIntegrity, onOpenPlanetProject }) {
   const [now, setNow] = useState(Date.now());
   const credits = Number(player?.credits ?? 0);
-  const effects = getHqEffects(hq);
+  const { commonRows, hqOnlyRows } = getProgressionStats(save?.research, hq);
   const totalLevel = HQ_UPGRADE_LIST.reduce((sum, item) => sum + Number(hq?.[item.key] ?? 0), 0);
   const activeProject = hqProjects?.active || null;
   const activeUpgrade = activeProject ? HQ_UPGRADE_LIST.find((item) => item.key === activeProject.key) : null;
@@ -211,7 +192,6 @@ export function HeadquartersView({ hq = {}, player, inventory = {}, hqProjects =
   const totalMs = activeProject ? Math.max(1, Number(activeProject.endsAt ?? 0) - Number(activeProject.startedAt ?? 0)) : 1;
   const progressPct = activeProject ? Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100)) : 0;
   const health = Math.max(0, Math.min(100, Number(player?.health ?? 100)));
-  const integrity = getIntegrityState(health);
   const repair = getIntegrityRepairPreview(player);
   const canRepair = repair.restore > 0 && credits >= repair.credits && canAffordResources(repair.resources, inventory);
   const currentPlanetId = player?.currentPlanet || player?.planet || 'nexus-prime';
@@ -277,11 +257,12 @@ export function HeadquartersView({ hq = {}, player, inventory = {}, hqProjects =
           </div>
         </div>
         <div style={styles.summaryGrid}>
-          <Summary label="Almacen" value={`+${formatPct(effects.companyStorageMult - 1)}`} />
-          <Summary label="Venta" value={`+${formatPct(effects.marketSellMult - 1)}`} />
-          <Summary label="Energia" value={`-${formatPct(effects.actionEnergyDiscount)}`} />
-          <Summary label="Conquista" value={`+${formatPct(effects.conquestPowerMult - 1)}`} />
+          {commonRows.slice(0, 3).map((row) => (
+            <Summary key={row.key} label={row.label} value={row.total} />
+          ))}
+          <Summary label="Venta" value={hqOnlyRows[0]?.value || '+0%'} />
         </div>
+        <ProgressionMatrix rows={commonRows} />
         {activeProject && (
           <div style={{ display: 'grid', gap: 8, padding: 10, borderRadius: 10, background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(125,211,252,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -322,6 +303,8 @@ export function HeadquartersView({ hq = {}, player, inventory = {}, hqProjects =
             credits >= Number(cost.credits ?? 0) &&
             canAffordResources(cost.resources, inventory);
           const hasCredits = credits >= Number(cost.credits ?? 0);
+          const currentEffect = item.effectLabel(level);
+          const nextEffect = item.effectLabel(Math.min(item.maxLevel, level + 1));
           return (
             <div
               key={item.key}
@@ -340,7 +323,12 @@ export function HeadquartersView({ hq = {}, player, inventory = {}, hqProjects =
                 <div style={styles.name}>{item.name}</div>
                 <div style={styles.desc}>Nivel {level}/{item.maxLevel}</div>
               </div>
-              <div style={{ ...styles.effect, padding: 8 }}>{item.effectLabel(level)}</div>
+              <div style={{ ...styles.effect, padding: 8, display: 'grid', gap: 3 }}>
+                <span>{currentEffect}</span>
+                <span style={{ color: '#7dd3fc', fontSize: 11 }}>
+                  {isMaxed ? 'Modulo completado' : `Siguiente: ${nextEffect}`}
+                </span>
+              </div>
               <div style={{ display: 'grid', gap: 4, fontSize: 11, color: '#cbd5e1' }}>
                 {isMaxed ? (
                   <strong style={{ color: '#bbf7d0' }}>Completado</strong>
@@ -399,129 +387,6 @@ export function HeadquartersView({ hq = {}, player, inventory = {}, hqProjects =
     </div>
   );
 
-  return (
-    <div style={styles.wrap}>
-      <div style={styles.hero}>
-        <div style={styles.kicker}>Sede corporativa</div>
-        <div style={styles.title}>Centro de mando de AstraCorp</div>
-        <div style={styles.text}>
-          Invierte creditos en infraestructura permanente. Estas mejoras empujan empresas,
-          mercado, energia y control territorial sin depender de anuncios ni contratos.
-        </div>
-
-        <div style={styles.summaryGrid}>
-          <Summary label="Nivel sede" value={totalLevel} />
-          <Summary label="Almacen" value={`+${formatPct(effects.companyStorageMult - 1)}`} />
-          <Summary label="Venta mercado" value={`+${formatPct(effects.marketSellMult - 1)}`} />
-          <Summary label="Ahorro energia" value={`-${formatPct(effects.actionEnergyDiscount)}`} />
-          <Summary label="Conquista" value={`+${formatPct(effects.conquestPowerMult - 1)}`} />
-        </div>
-      </div>
-
-      <div style={styles.integrityPanel}>
-        <div style={styles.integrityTop}>
-          <div>
-            <div style={styles.kicker}>Integridad operativa</div>
-            <div style={styles.integrityTitle}>{formatNumber(health, 0)}/100 · {integrity.label}</div>
-            <div style={styles.integrityText}>{integrity.text}</div>
-          </div>
-          <div style={styles.badge}>Repara hasta +{formatNumber(repair.restore, 0)}</div>
-        </div>
-        <div style={styles.integrityBar}>
-          <div style={{ ...styles.integrityFill, width: `${health}%`, background: integrity.color }} />
-        </div>
-        <div style={styles.integrityCost}>
-          Coste: {formatNumber(repair.credits, 0)} cr · {formatCostResources(repair.resources, inventory)}
-        </div>
-        <button
-          type="button"
-          onClick={() => onRepairIntegrity?.()}
-          disabled={!canRepair}
-          style={{ ...styles.button, ...(!canRepair ? styles.disabled : null) }}
-        >
-          {repair.restore <= 0 ? 'Integridad al maximo' : `Reparar +${formatNumber(repair.restore, 0)}`}
-        </button>
-      </div>
-
-      <div style={styles.orbitalPanel}>
-        <div style={styles.integrityTop}>
-          <div>
-            <div style={styles.kicker}>Proyecto orbital</div>
-            <div style={styles.integrityTitle}>
-              {nextPlanet ? `${currentPlanet?.name || 'Planeta actual'} -> ${nextPlanet.name}` : 'Sistema planetario completado'}
-            </div>
-            <div style={styles.integrityText}>
-              {nextPlanet
-                ? 'El salto se abre cuando dominas el planeta actual: territorio, sede, contratos y economia.'
-                : 'No quedan rutas principales por desbloquear en esta version.'}
-            </div>
-          </div>
-          <div style={styles.badge}>{nextStatus?.unlocked ? 'Listo' : 'En preparacion'}</div>
-        </div>
-
-        {nextPlanet ? (
-          <>
-            <div style={styles.orbitalGrid}>
-              <OrbitalReq label="Nivel" value={formatProgress(nextProgress.level, nextRequirements.level)} ok={nextProgress.level >= Number(nextRequirements.level ?? 0)} />
-              <OrbitalReq label="Sectores" value={formatProgress(nextProgress.territories, nextRequirements.territories)} ok={nextProgress.territories >= Number(nextRequirements.territories ?? 0)} />
-              <OrbitalReq label="Empresas" value={formatProgress(nextProgress.companies, nextRequirements.companies)} ok={nextProgress.companies >= Number(nextRequirements.companies ?? 0)} />
-              <OrbitalReq label="Contratos terr." value={formatProgress(nextProgress.territoryContracts, nextRequirements.territoryContracts)} ok={nextProgress.territoryContracts >= Number(nextRequirements.territoryContracts ?? 0)} />
-              <OrbitalReq label="Sede" value={formatProgress(nextProgress.hqLevel, nextRequirements.hqLevel)} ok={nextProgress.hqLevel >= Number(nextRequirements.hqLevel ?? 0)} />
-              <OrbitalReq label="Coste" value={`${formatNumber(nextPlanet.travelCost, 0)} cr`} ok={credits >= Number(nextPlanet.travelCost ?? 0) && canAffordTravelResources} />
-            </div>
-            <div style={styles.integrityCost}>Productos: {formatCostResources(travelResources, inventory)}</div>
-          </>
-        ) : null}
-
-        <button type="button" onClick={() => onOpenPlanetProject?.()} style={styles.button}>
-          Abrir rutas planetarias
-        </button>
-      </div>
-      <div style={styles.grid}>
-        {HQ_UPGRADE_LIST.map((upgrade) => {
-          const level = Number(hq?.[upgrade.key] ?? 0);
-          const maxLevel = Number(upgrade.maxLevel ?? 5);
-          const isMaxed = level >= maxLevel;
-          const cost = getHqUpgradeCost(upgrade.key, level);
-          const hasCredits = credits >= Number(cost.credits ?? 0);
-          const hasResources = canAffordResources(cost.resources, inventory);
-          const canBuy = !isMaxed && hasCredits && hasResources;
-
-          return (
-            <div key={upgrade.key} style={styles.card}>
-              <div style={styles.top}>
-                <div>
-                  <div style={styles.name}>
-                    {upgrade.icon} {upgrade.name}
-                  </div>
-                  <div style={styles.desc}>{upgrade.desc}</div>
-                </div>
-                <div style={styles.badge}>
-                  Nivel {level}/{maxLevel}
-                </div>
-              </div>
-
-              <div style={styles.effect}>{upgrade.effectLabel(level || 0)}</div>
-
-              <div style={styles.costBox}>
-                <div>Creditos: <strong>{formatNumber(cost.credits, 0)} cr</strong></div>
-                <div style={hasResources ? styles.costReady : styles.costMissing}>Productos: {formatCostResources(cost.resources, inventory)}</div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onUpgrade?.(upgrade.key)}
-                disabled={!canBuy}
-                style={{ ...styles.button, ...(!canBuy ? styles.disabled : null) }}
-              >
-                {isMaxed ? 'Nivel maximo' : `Mejorar - ${formatNumber(cost.credits, 0)} cr`}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 function Summary({ label, value }) {
@@ -529,6 +394,54 @@ function Summary({ label, value }) {
     <div style={styles.summaryBox}>
       <div style={styles.summaryLabel}>{label}</div>
       <div style={styles.summaryValue}>{value}</div>
+    </div>
+  );
+}
+
+function ProgressionMatrix({ rows }) {
+  return (
+    <div style={{ display: 'grid', gap: 8, padding: 10, borderRadius: 10, background: 'rgba(2,6,23,0.22)', border: '1px solid rgba(148,163,184,0.10)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'baseline' }}>
+        <div>
+          <div style={styles.kicker}>Bonos comunes</div>
+          <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 900 }}>Investigacion + Sede = efecto real</div>
+        </div>
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>La sede refuerza los mismos ejes que algunas investigaciones.</div>
+      </div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        {rows.map((row) => (
+          <div
+            key={row.key}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(110px, 1.1fr) repeat(3, minmax(72px, 0.75fr))',
+              gap: 8,
+              alignItems: 'center',
+              padding: 8,
+              borderRadius: 8,
+              background: 'rgba(15,23,42,0.72)',
+              border: '1px solid rgba(148,163,184,0.10)',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 12, color: '#f8fafc', fontWeight: 900 }}>{row.label}</div>
+              <div style={{ fontSize: 10, color: '#94a3b8' }}>{row.detail}</div>
+            </div>
+            <MatrixValue label="Inv." value={row.research} />
+            <MatrixValue label="Sede" value={row.hq} />
+            <MatrixValue label="Total" value={row.total} highlight />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MatrixValue({ label, value, highlight = false }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 9, color: '#64748b', fontWeight: 900, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 12, color: highlight ? '#bbf7d0' : '#dbeafe', fontWeight: 900 }}>{value}</div>
     </div>
   );
 }

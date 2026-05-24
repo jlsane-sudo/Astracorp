@@ -268,10 +268,15 @@ export async function flushAdViewsToSupabase({
     };
   }
 
+  const entryViews = Number(nextTarget.entry.views || 0);
+  const entryRevenue = round6(nextTarget.entry.revenue || 0);
+  const flushViews = Math.min(50, entryViews);
+  const flushRevenue = round6(entryViews > 0 ? (entryRevenue / entryViews) * flushViews : 0);
+
   const { error } = await supabase.rpc('rpc_flush_ad_views', {
     p_day_key: nextTarget.entry.dayKey,
-    p_views: Number(nextTarget.entry.views || 0),
-    p_revenue_eur: round6(nextTarget.entry.revenue || 0),
+    p_views: flushViews,
+    p_revenue_eur: flushRevenue,
     p_player_pct: Number(playerPct || 1),
   });
 
@@ -286,17 +291,24 @@ export async function flushAdViewsToSupabase({
     };
   }
 
-  const flushedViews = Number(nextTarget.entry.views || 0);
-  const flushedRevenue = round6(nextTarget.entry.revenue || 0);
+  const flushedViews = flushViews;
+  const flushedRevenue = flushRevenue;
+  const remainingViews = Math.max(0, entryViews - flushedViews);
+  const remainingRevenue = round6(Math.max(0, entryRevenue - flushedRevenue));
+  const remainingEntry = remainingViews > 0
+    ? createPendingEntry(nextTarget.entry.dayKey, remainingViews, remainingRevenue)
+    : null;
 
   if (nextTarget.source === 'backlog') {
     writePending(userId, {
       current: pendingStore.current,
-      backlog: pendingStore.backlog.slice(1),
+      backlog: remainingEntry
+        ? [remainingEntry, ...pendingStore.backlog.slice(1)]
+        : pendingStore.backlog.slice(1),
     });
   } else {
     writePending(userId, {
-      current: createPendingEntry(getTodayKey()),
+      current: remainingEntry || createPendingEntry(getTodayKey()),
       backlog: pendingStore.backlog,
     });
   }

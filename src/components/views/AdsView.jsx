@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import AdSlot from '../ads/AdSlot';
 import { getSponsoredAdAvailability } from '../../services/sponsoredAds';
 import { getAdControlUpgradeCost } from '../../hooks/engine/gamePureLogic';
-import { AD_POOL_REVENUE_PER_VIEW } from '../../hooks/engine/gameConstants';
+import { getVisibleAdIncomeMetrics } from '../../utils/adIncome';
 
 export function AdsView({
   player,
@@ -18,47 +18,18 @@ export function AdsView({
 }) {
   const [floatingReward, setFloatingReward] = useState(null);
   const pct = typeof player?.pct === 'number' ? player.pct : 1;
-  const sponsoredActionsToday = Math.max(
-    0,
-    Number(rewardAdsToday ?? 0),
-    Number(adsViewedToday ?? 0)
-  );
+  const income = getVisibleAdIncomeMetrics({
+    adIncomeSummary,
+    playerPct: pct,
+    rewardAdsToday,
+    adsViewedToday,
+  });
+  const sponsoredActionsToday = income.sponsoredActionsToday;
   const availability = getSponsoredAdAvailability({
     rewardAdsToday: sponsoredActionsToday,
     lastRewardAdAt,
   });
   const cooldownLeftMin = Math.ceil(Number(availability.cooldownLeftMs ?? 0) / 60000);
-
-  const income = {
-    yesterday_payout: Number(adIncomeSummary?.yesterday_payout ?? 0),
-    yesterday_pool: Number(adIncomeSummary?.yesterday_pool ?? 0),
-    yesterday_estimate: Number(adIncomeSummary?.yesterday_estimate ?? 0),
-    yesterday_closed: adIncomeSummary?.yesterday_closed !== false,
-    avg_last_10_days: Number(adIncomeSummary?.avg_last_10_days ?? 0),
-    total_payout: Number(adIncomeSummary?.total_payout ?? 0),
-    total_pool: Number(adIncomeSummary?.total_pool ?? 0),
-    today_pool: Number(adIncomeSummary?.today_pool ?? 0),
-    today_active_players: Number(adIncomeSummary?.today_active_players ?? 1),
-    today_pct: pct,
-    today_estimate: Number(adIncomeSummary?.today_estimate ?? 0),
-  };
-
-  const visibleTodayPool = Math.max(0, income.today_pool);
-  const localTodayEstimate =
-    (sponsoredActionsToday * AD_POOL_REVENUE_PER_VIEW / Math.max(income.today_active_players, 1)) *
-    (pct / 100);
-  const visibleTodayEstimate = Math.max(0, income.today_estimate, localTodayEstimate);
-  const visibleYesterdayPool = Math.max(0, income.yesterday_pool);
-  const visibleYesterdayPayout = income.yesterday_closed
-    ? income.yesterday_payout
-    : Math.max(income.yesterday_payout, income.yesterday_estimate);
-  const totalPayoutFromHistory = useMemo(
-    () => (Array.isArray(adIncomeHistory) ? adIncomeHistory : [])
-      .reduce((sum, item) => sum + Number(item?.final_payout ?? 0), 0),
-    [adIncomeHistory]
-  );
-  const visibleTotalEarned = Math.max(income.total_payout, totalPayoutFromHistory) + visibleTodayEstimate;
-  const visibleTotalPool = Math.max(0, income.total_pool, visibleTodayPool + visibleYesterdayPool, visibleTodayPool);
 
   const history = useMemo(
     () => (Array.isArray(adIncomeHistory) ? [...adIncomeHistory].reverse() : []),
@@ -102,7 +73,7 @@ export function AdsView({
             <div style={styles.kicker}>ADS</div>
             <div style={styles.title}>{statusLabel}</div>
             <div style={styles.muted}>
-              {sponsoredActionsToday} acciones hoy - recompensa +2 cr y +8 energia - estimacion EUR {visibleTodayEstimate.toFixed(4)}
+              {sponsoredActionsToday} acciones hoy - recompensa +2 cr y +8 energia - estimacion EUR {income.visibleTodayEstimate.toFixed(4)}
             </div>
           </div>
           <div style={styles.actions}>
@@ -135,11 +106,11 @@ export function AdsView({
       </div>
 
       <div style={styles.kpiGrid}>
-        <MiniStat label="Hoy estimado" value={`EUR ${visibleTodayEstimate.toFixed(4)}`} color="#fbbf24" />
-        <MiniStat label={income.yesterday_closed ? "Ayer ganado" : "Ayer estimado"} value={`EUR ${visibleYesterdayPayout.toFixed(4)}`} color="#4ade80" />
-        <MiniStat label="Ganado total" value={`EUR ${visibleTotalEarned.toFixed(4)}`} color="#60a5fa" />
-        <MiniStat label="Pool hoy" value={`EUR ${visibleTodayPool.toFixed(4)}`} color="#a78bfa" />
-        <MiniStat label="Pool total" value={`EUR ${visibleTotalPool.toFixed(4)}`} color="#f472b6" />
+        <MiniStat label="Hoy estimado" value={`EUR ${income.visibleTodayEstimate.toFixed(4)}`} color="#fbbf24" />
+        <MiniStat label={income.yesterdayClosed ? "Ayer ganado" : "Ayer estimado"} value={`EUR ${income.visibleYesterdayPayout.toFixed(4)}`} color="#4ade80" />
+        <MiniStat label="Ganado total" value={`EUR ${income.visibleTotalEarned.toFixed(4)}`} color="#60a5fa" />
+        <MiniStat label="Pool hoy" value={`EUR ${income.visibleTodayPool.toFixed(4)}`} color="#a78bfa" />
+        <MiniStat label="Pool total" value={`EUR ${income.visibleTotalPool.toFixed(4)}`} color="#f472b6" />
       </div>
 
       <div style={styles.upgradeRow}>

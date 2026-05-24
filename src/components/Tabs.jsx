@@ -142,6 +142,11 @@ export function Tabs({ tab, onChange, missions, contracts, unlockedTabs = null }
   const visibleTabs = getVisibleTabs(unlockedTabs);
   const activeGroup = getActiveGroup(tab, visibleTabs);
   const showChildRow = !Array.isArray(unlockedTabs) && activeGroup.children?.length;
+  const activateTab = (event, nextTab) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onChange(nextTab);
+  };
 
   return (
     <div className="pw-tabs-inline">
@@ -150,12 +155,16 @@ export function Tabs({ tab, onChange, missions, contracts, unlockedTabs = null }
           const isActive = activeGroup.key === item.key;
           const showBadge = item.showBadge && pendingMissions > 0;
           const target = item.children?.[0]?.key || item.key;
+          const nextTab = item.key === 'home' ? 'home' : target;
 
           return (
             <button
               key={item.key}
               type="button"
-              onClick={() => onChange(item.key === 'home' ? 'home' : target)}
+              data-tab-target={nextTab}
+              onPointerDownCapture={(event) => activateTab(event, nextTab)}
+              onMouseDownCapture={(event) => activateTab(event, nextTab)}
+              onClick={(event) => activateTab(event, nextTab)}
               style={{
                 ...styles.button,
                 ...(isActive ? styles.active : null),
@@ -178,7 +187,10 @@ export function Tabs({ tab, onChange, missions, contracts, unlockedTabs = null }
               <button
                 key={child.key}
                 type="button"
-                onClick={() => onChange(child.key)}
+                data-tab-target={child.key}
+                onPointerDownCapture={(event) => activateTab(event, child.key)}
+                onMouseDownCapture={(event) => activateTab(event, child.key)}
+                onClick={(event) => activateTab(event, child.key)}
                 style={{
                   minHeight: 25,
                   padding: '4px 9px',

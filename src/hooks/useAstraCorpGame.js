@@ -114,7 +114,7 @@ export function useAstraCorpGame() {
       return;
     }
     lockedMarketRef.current = save.market;
-  }, [save.market]);
+  }, [save.market, save.marketSyncedAt]);
 
   // -- Persistence layer -----------------------------------------------------
   const {

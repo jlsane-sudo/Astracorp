@@ -1,3 +1,5 @@
+import { getPlanetById } from '../data/planets';
+
 export function Notification({ note }) {
   if (!note) return null;
   const bg = note.type === 'success' ? 'rgba(16,185,129,0.95)' : note.type === 'warn' ? 'rgba(245,158,11,0.95)' : 'rgba(239,68,68,0.95)';
@@ -94,6 +96,57 @@ export function EventBanner({ event, contracts = [], onClose, onOpenTab, playerL
       >
         Cerrar
       </button>
+    </div>
+  );
+}
+
+function getPlanetShortImpact(planet) {
+  const effects = planet?.effects || {};
+  const resourceEntries = Object.entries(effects.resourceRateMult || {});
+  const weakestResource = resourceEntries
+    .sort((a, b) => Number(a[1]) - Number(b[1]))[0];
+  const resourceLabel = weakestResource ? RESOURCE_LABELS[weakestResource[0]] || weakestResource[0] : null;
+  const marketPct = Math.round((Number(effects.marketSellMult ?? 1) - 1) * 100);
+  const contractPct = Math.round((Number(effects.contractRewardMult ?? 1) - 1) * 100);
+
+  return [
+    resourceLabel ? `${resourceLabel} escasea` : planet?.subtitle || 'Operacion estable',
+    marketPct ? `Mercado ${marketPct > 0 ? '+' : ''}${marketPct}%` : null,
+    contractPct ? `Contratos ${contractPct > 0 ? '+' : ''}${contractPct}%` : null,
+  ].filter(Boolean);
+}
+
+export function PlanetArrivalBanner({ arrival, onClose, onOpenTab }) {
+  if (!arrival?.toId) return null;
+
+  const planet = getPlanetById(arrival.toId);
+  const impacts = getPlanetShortImpact(planet);
+
+  return (
+    <div
+      className="pw-planet-arrival-banner"
+      style={{ '--planet-banner-a': planet.colorA, '--planet-banner-b': planet.colorB }}
+    >
+      <div className="pw-planet-arrival-banner__orb" aria-hidden="true" />
+      <div className="pw-planet-arrival-banner__body">
+        <div className="pw-planet-arrival-banner__title">
+          Nueva base activa: {planet.name}
+        </div>
+        <div className="pw-planet-arrival-banner__text">
+          {impacts.join(' · ')}
+        </div>
+      </div>
+      <div className="pw-planet-arrival-banner__actions">
+        <button type="button" onClick={() => onOpenTab?.('map')}>
+          Mapa
+        </button>
+        <button type="button" onClick={() => onOpenTab?.('missions')}>
+          Contratos
+        </button>
+        <button type="button" onClick={onClose} aria-label="Cerrar aviso de planeta">
+          Cerrar
+        </button>
+      </div>
     </div>
   );
 }

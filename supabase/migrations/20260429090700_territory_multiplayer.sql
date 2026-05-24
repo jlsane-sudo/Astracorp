@@ -1,4 +1,4 @@
-﻿-- AstraCorp - territorios multijugador online
+-- AstraCorp - territorios multijugador online
 -- Version compatible con Supabase SQL Editor.
 
 create table if not exists public.game_saves (

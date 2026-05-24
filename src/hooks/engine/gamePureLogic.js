@@ -73,6 +73,7 @@ export const MARKET_MAX_TRADE_UNITS = 250;
 export const MARKET_TRADE_PRICE_STEP = 0.01;
 export const MARKET_BUY_MARKUP = 1.08;
 export const MARKET_SELL_MARKDOWN = 0.78;
+export const CONTRACT_BUY_ARBITRAGE_CAP = 0.9;
 
 export const applyMarketTradePriceImpact = (item, amount = 1, direction = 'sell') => {
   const safeAmount = Math.max(0, Math.floor(Number(amount || 0)));
@@ -432,6 +433,7 @@ export const buildRemoteSavePayload = (saveData) => ({
   sessionStartedAt: Date.now(),
   lastSessionEventAt: 0,
   lastSectorEventAt: 0,
+  lastAdBoomAt: Number(saveData?.lastAdBoomAt ?? 0),
   activeSectorEvent: null,
   levelMoment: null,
 });
@@ -575,7 +577,10 @@ export const createCycleEvent = (lastEventAt = 0, saveData = {}) => {
   if (saveData?.activeEvent && Number(saveData.activeEvent.expiresAt ?? 0) > now) return null;
   if (now - Number(lastEventAt ?? 0) < 6 * 60 * 1000) return null;
   if (Math.random() > 0.14) return null;
-  const source = randFrom(RANDOM_EVENTS);
+  const adBoomCoolingDown = now - Number(saveData?.lastAdBoomAt ?? 0) < 30 * 60 * 1000;
+  const candidates = RANDOM_EVENTS.filter((event) => !(event?.effect === 'adBoom' && adBoomCoolingDown));
+  if (!candidates.length) return null;
+  const source = randFrom(candidates);
   return filterEventForPlayerLevel(
     { ...source, affectedKeys: getEventImpactedKeys(source.effect) },
     saveData?.player?.level ?? 1
@@ -734,9 +739,11 @@ export const createSessionEvent = (saveData, now = Date.now()) => {
   if (Math.random() > 0.08) return null;
   const playerLevel = Number(saveData?.player?.level ?? 1);
   const lastEventEffect = saveData?.lastSessionEventEffect || saveData?.activeEvent?.effect || null;
+  const adBoomCoolingDown = now - Number(saveData?.lastAdBoomAt ?? 0) < 30 * 60 * 1000;
   const candidates = SESSION_EVENT_TEMPLATES
     .map((template) => filterEventForPlayerLevel(template, playerLevel))
     .filter((template) => template?.effect !== lastEventEffect)
+    .filter((template) => !(template?.effect === 'adBoom' && adBoomCoolingDown))
     .filter(Boolean);
   if (!candidates.length) return null;
   const template = randFrom(candidates);
@@ -1595,8 +1602,9 @@ export const getControlledStrategicEffects = (
 };
 
 export const getCompanyOccupancyState = (
-  companyRegionKey, territories = [], playerName = '', planetId = STARTER_PLANET_ID, companyTerritoryId = null, companyOwnerName = playerName
+  companyRegionKey, territories = [], playerName = '', planetId = STARTER_PLANET_ID, companyTerritoryId = null
 ) => {
+  void playerName;
   const region = getRegionEconomy(companyRegionKey, planetId);
   const targetTerritoryId = companyTerritoryId ?? region?.territoryId;
   const territory = targetTerritoryId !== undefined && targetTerritoryId !== null
@@ -1974,8 +1982,17 @@ export const createContractFromTemplate = (template, level, now = Date.now(), pl
       * Number(variant.qtyMult ?? 1)
     )
   );
-  const rewardCredits = round2(
+  const formulaRewardCredits = round2(
     Number(mm.base ?? 1) * qty * Number(template.rewardMult ?? 1.3) * Number(variant.rewardMult ?? 1) * (1 + strategicContractBonus)
+  );
+  const estimatedMarketUnitBuyPrice = round2(
+    Number(mm.price ?? mm.base ?? 1) * MARKET_BUY_MARKUP
+  );
+  const antiArbitrageRewardCap = round2(
+    estimatedMarketUnitBuyPrice * qty * CONTRACT_BUY_ARBITRAGE_CAP
+  );
+  const rewardCredits = round2(
+    Math.min(formulaRewardCredits, antiArbitrageRewardCap)
   );
   const rewardXp = Math.round((Number(template.baseXp ?? 16) + qty * 4 + levelBonus * 3) * Number(variant.xpMult ?? 1));
   const durationMin = Math.max(8, Math.round(Number(template.durationMin ?? 20) * Number(variant.durationMult ?? 1)));
@@ -2154,8 +2171,11 @@ export const isTutorialStepComplete = (stepId, saveData) => {
   switch (stepId) {
     case 'work_once':    return Number(saveData?.stats?.works   ?? 0) >= 1;
     case 'build_company':return Array.isArray(saveData?.companies) && saveData.companies.length >= 1;
+    case 'sell_once':    return Number(saveData?.stats?.sells   ?? 0) >= 1;
     case 'level_two':   return Number(saveData?.player?.level   ?? 1) >= 2;
-    case 'buy_once':    return Number(saveData?.stats?.buys     ?? 0) >= 1;
+    case 'open_hq':     return Object.values(saveData?.hq || {}).some((level) => Number(level ?? 0) >= 1);
+    case 'start_research': return Boolean(saveData?.researchProjects?.active) ||
+      Object.values(saveData?.research || {}).some((level) => Number(level ?? 0) >= 1);
     default:            return false;
   }
 };
@@ -2314,6 +2334,7 @@ export const createInitialSave = () => ({
   adBoosts: { ...DEFAULT_AD_BOOSTS },
   lastLoginDate: null,
   lastEventAt: 0,
+  lastAdBoomAt: 0,
   lastSessionEventEffect: null,
   territorialWeeklyEvent: null,
   loginRewards: createInitialLoginRewards(),
@@ -2611,6 +2632,7 @@ export const normalizeSave = (rawSave) => {
     rewardAdsToday: Number(source.rewardAdsToday ?? 0),
     lastRewardAdAt: source.lastRewardAdAt ?? null,
     lastEventAt: Number(source.lastEventAt ?? 0),
+    lastAdBoomAt: Number(source.lastAdBoomAt ?? 0),
     lastSessionEventEffect: source.lastSessionEventEffect ?? null,
     territorialWeeklyEvent: normalizeTerritorialWeeklyEvent(source.territorialWeeklyEvent ?? base.territorialWeeklyEvent, normalizedTerritories, Number(source.day ?? base.day ?? 1)),
     loginRewards: { ...createInitialLoginRewards(), ...(source.loginRewards || {}) },

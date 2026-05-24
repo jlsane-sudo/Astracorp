@@ -1,4 +1,4 @@
-﻿-- AstraCorp - empresas online server-first
+-- AstraCorp - empresas online server-first
 -- Ejecutar por bloques en Supabase SQL Editor si el editor corta funciones largas.
 
 create table if not exists public.game_saves (

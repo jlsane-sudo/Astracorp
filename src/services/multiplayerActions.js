@@ -126,6 +126,10 @@ export async function getGlobalTerritoriesSecure() {
   return callRpc('rpc_get_global_territories', {});
 }
 
+export async function resetGameSecure() {
+  return callRpc('rpc_reset_game_secure', {});
+}
+
 export async function getActiveElectionsSecure() {
   try {
     const { data, error } = await supabase

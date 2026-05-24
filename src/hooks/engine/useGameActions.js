@@ -6,7 +6,6 @@
  * No contiene ningun setInterval ni useEffect.
  */
 
-import { startTransition } from 'react';
 import { getResearchEffects, getResearchUpgradeCost } from '../../data/researchData';
 import { HQ_UPGRADES, getHqUpgradeCost, getHqUpgradeTimeMin } from '../../data/hqUpgrades';
 import { COMPANY_TYPES, getCompanyBuildCost } from '../../data/companyTypes';
@@ -27,7 +26,7 @@ import {
   openSponsoredAd,
 } from '../../services/sponsoredAds';
 import { saveGame } from '../../services/gameSave';
-import { buildCompanySecure, collectCompanySecure, sellCompanySecure, collectCompanyGroupSecure, collectAllCompaniesAdSecure, attackTerritorySecure, reinforceTerritorySecure, sabotageTerritorySecure, buildTerritoryFortSecure, collectOccupationTaxesSecure, getGlobalTerritoriesSecure, getGlobalMarketSecure, buyMarketItemSecure, sellMarketItemSecure, deliverContractSecure, claimMissionRewardSecure, startWorkSecure, boostWorkSecure, startResearchSecure, boostResearchSecure, upgradeHqSecure, repairIntegritySecure, startElectionSecure, voteElectionSecure } from '../../services/multiplayerActions';
+import { buildCompanySecure, collectCompanySecure, sellCompanySecure, collectCompanyGroupSecure, collectAllCompaniesAdSecure, attackTerritorySecure, reinforceTerritorySecure, sabotageTerritorySecure, buildTerritoryFortSecure, collectOccupationTaxesSecure, getGlobalTerritoriesSecure, getGlobalMarketSecure, buyMarketItemSecure, sellMarketItemSecure, deliverContractSecure, claimMissionRewardSecure, startWorkSecure, boostWorkSecure, startResearchSecure, boostResearchSecure, upgradeHqSecure, repairIntegritySecure, resetGameSecure, startElectionSecure, voteElectionSecure } from '../../services/multiplayerActions';
 
 const VALID_TABS = new Set([
   'home',
@@ -228,7 +227,7 @@ export function useGameActions({ save, setSave, user, persistRemoteSave, updateM
   const updateSave = (patch) => setSave((prev) => ({ ...prev, ...patch }));
   const setTab = (tab) => {
     const nextTab = VALID_TABS.has(tab) ? tab : 'home';
-    startTransition(() => updateSave({ tab: nextTab }));
+    updateSave({ tab: nextTab });
   };
 
   const getFreshEconomicSave = (baseSave) => {
@@ -531,11 +530,21 @@ export function useGameActions({ save, setSave, user, persistRemoteSave, updateM
 
     resetGame: async () => {
       const newSave = applyDailyLoginUpdate(createInitialSave());
+      if (user) {
+        try {
+          const remote = await resetGameSecure();
+          if (remote?.error && !remote.fallbackAllowed) {
+            notify(remote.error, 'error');
+            return;
+          }
+        }
+        catch (err) { console.error('Error reseteando partida remota:', err); }
+      }
       setSave(newSave);
       writeLocalSave(user?.id || null, newSave);
       if (user) {
         try { await saveGame(user.id, newSave); }
-        catch (err) { console.error('Error reseteando partida remota:', err); }
+        catch (err) { console.error('Error guardando reset remoto:', err); }
       }
     },
 
@@ -1604,6 +1613,7 @@ export function useGameActions({ save, setSave, user, persistRemoteSave, updateM
           player:    { ...spendEnergy(live.player, 'sellItem', live.research, live.hq), credits: round2(Number(live.player?.credits ?? 0) + total) },
           inventory: { ...live.inventory, [key]: round2(Math.max(0, Number(live.inventory?.[key] ?? 0) - quote.amount)) },
           market:    { ...live.market, [key]: nextItem },
+          stats:     { ...live.stats, sells: Number(live.stats?.sells ?? 0) + quote.amount },
           activeEventStats: eventAffected
             ? {
                 ...(live.activeEventStats || { id: live.activeEvent?.id, title: live.activeEvent?.title }),

@@ -5,7 +5,7 @@ export const HQ_UPGRADES = {
     name: 'Centro logistico',
     desc: 'Amplia almacenes y mejora la organizacion de tus empresas.',
     maxLevel: 5,
-    baseCost: 14,
+    baseCost: 32,
     effectLabel: (level) => `+${level * 10}% almacenamiento empresarial`,
   },
   trade_desk: {
@@ -14,7 +14,7 @@ export const HQ_UPGRADES = {
     name: 'Departamento comercial',
     desc: 'Negocia mejores precios de salida en el mercado orbital.',
     maxLevel: 5,
-    baseCost: 16,
+    baseCost: 36,
     effectLabel: (level) => `+${level * 5}% venta en mercado`,
   },
   operations_room: {
@@ -23,7 +23,7 @@ export const HQ_UPGRADES = {
     name: 'Sala de operaciones',
     desc: 'Reduce friccion operativa y el gasto energetico de acciones clave.',
     maxLevel: 5,
-    baseCost: 18,
+    baseCost: 40,
     effectLabel: (level) => `-${level * 4}% coste energetico`,
   },
   defense_office: {
@@ -32,7 +32,7 @@ export const HQ_UPGRADES = {
     name: 'Oficina defensiva',
     desc: 'Refuerza administracion territorial y baja la presion hostil.',
     maxLevel: 5,
-    baseCost: 18,
+    baseCost: 40,
     effectLabel: (level) => `-${level * 5}% presion territorial`,
   },
   war_room: {
@@ -41,7 +41,7 @@ export const HQ_UPGRADES = {
     name: 'Sala tactica',
     desc: 'Mejora la preparacion militar para conquistar sectores.',
     maxLevel: 5,
-    baseCost: 20,
+    baseCost: 44,
     effectLabel: (level) => `+${level * 5}% potencia de conquista`,
   },
 };
@@ -94,21 +94,21 @@ export const getHqUpgradeCost = (upgradeKey, level = 0) => {
   const safeLevel = Math.max(0, Number(level || 0));
   const nextLevel = safeLevel + 1;
   const baseCost = Number(upgrade.baseCost || 10);
-  const credits = Math.round(baseCost * nextLevel ** 2.05 * (1 + safeLevel * 0.18));
+  const credits = Math.round(baseCost * 1.45 * 2.8 ** safeLevel);
   const resourcePlan = HQ_RESOURCE_COSTS[upgradeKey] || HQ_RESOURCE_COSTS.logistics_center;
   const resources = [];
 
   if (nextLevel >= 2) {
-    resources.push({ key: resourcePlan.primary, amount: Math.ceil(4 * nextLevel ** 1.35) });
+    resources.push({ key: resourcePlan.primary, amount: Math.ceil(12 * 1.9 ** safeLevel) });
   }
   if (nextLevel >= 3) {
-    resources.push({ key: resourcePlan.secondary, amount: Math.ceil(2 * nextLevel ** 1.25) });
+    resources.push({ key: resourcePlan.secondary, amount: Math.ceil(6 * 1.85 ** safeLevel) });
   }
   if (nextLevel >= 4) {
-    resources.push({ key: resourcePlan.advanced, amount: Math.ceil(1 * nextLevel ** 1.15) });
+    resources.push({ key: resourcePlan.advanced, amount: Math.ceil(4 * 1.75 ** safeLevel) });
   }
   if (nextLevel >= 5) {
-    resources.push({ key: resourcePlan.elite, amount: 2 });
+    resources.push({ key: resourcePlan.elite, amount: Math.ceil(6 * 1.7 ** (nextLevel - 5)) });
   }
 
   return { credits, resources };

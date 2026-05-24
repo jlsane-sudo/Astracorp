@@ -1,7 +1,7 @@
 import './styles/global.css';
 import { Component, lazy, Suspense, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from './components/Header';
-import { Confetti, EventBanner, Notification } from './components/Overlays';
+import { Confetti, EventBanner, Notification, PlanetArrivalBanner } from './components/Overlays';
 import { Tabs } from './components/Tabs';
 import { useAstraCorpGame } from './hooks/useAstraCorpGame';
 import { supabase } from './lib/supabase';
@@ -182,7 +182,7 @@ function EarlyGuideBanner({
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.55, color: '#dbe7f5', maxWidth: 880 }}>
           {tutorialStep?.desc ||
-            'Tu prioridad ahora es entender el bucle basico: trabajar, construir una primera empresa y subir al nivel 2 antes de abrir mas sistemas.'}
+            'Tu prioridad ahora es entender el bucle basico: trabajar, construir una primera empresa, vender tu primera produccion y solo despues abrir mas sistemas.'}
         </div>
       </div>
 
@@ -222,8 +222,8 @@ function EarlyGuideBanner({
           lineHeight: 1.5,
         }}
       >
-        Orden recomendado: <strong>Trabajos</strong> {'->'} <strong>Mercado</strong> {'->'}{' '}
-        <strong>Primera empresa</strong> {'->'} <strong>Nivel 2</strong>. Politica y sistemas avanzados pueden esperar.
+        Orden recomendado: <strong>Trabajos</strong> {'->'} <strong>Primera empresa</strong> {'->'}{' '}
+        <strong>Mercado</strong> {'->'} <strong>Nivel 2</strong> {'->'} <strong>Base</strong>. Politica y sistemas avanzados pueden esperar.
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -271,10 +271,15 @@ const getEarlyUnlockedTabs = (save = {}) => {
   const works = Number(save?.stats?.works ?? 0);
   const companies = Array.isArray(save?.companies) ? save.companies.length : 0;
   const level = Number(save?.player?.level ?? 1);
-  const tabs = ['home', 'work', 'market'];
+  const hasHqUpgrade = Object.values(save?.hq || {}).some((upgradeLevel) => Number(upgradeLevel ?? 0) >= 1);
+  const tabs = ['home', 'work'];
 
-  if (works > 0 || companies > 0 || level >= 2) tabs.push('business');
-  if (level >= 4) tabs.push('missions');
+  if (works >= 1) tabs.push('business');
+  if (companies >= 1) tabs.push('market');
+  if (level >= 2 || works >= 2) tabs.push('hq');
+  if (level >= 3 || hasHqUpgrade) tabs.push('research');
+  if (level >= 3) tabs.push('missions');
+  if (companies >= 2 || Number(save?.maintenanceDebt ?? 0) > 0) tabs.push('balance');
 
   return tabs;
 };
@@ -283,13 +288,11 @@ const getProgressiveUnlockedTabs = (save = {}) => {
   const level = Number(save?.player?.level ?? 1);
   const tabs = getEarlyUnlockedTabs(save);
 
-  if (level >= 10) tabs.push('hq');
-  if (level >= 11) tabs.push('research');
-  if (level >= 12) tabs.push('projects');
-  if (level >= 13) tabs.push('balance');
-  if (level >= 14) tabs.push('map');
-  if (level >= 15) tabs.push('politics');
-  if (level >= 16) tabs.push('ads', 'players', 'chat');
+  if (level >= 4) tabs.push('projects');
+  if (level >= 4 && Array.isArray(save?.companies) && save.companies.length >= 2) tabs.push('map');
+  if (level >= 5) tabs.push('politics');
+  if (level >= 3 || Number(save?.player?.energy ?? 0) < 35) tabs.push('ads');
+  if (level >= 5) tabs.push('players', 'chat');
 
   return [...new Set(tabs)];
 };
@@ -513,6 +516,23 @@ function AlertCenter({ save, onOpenTab }) {
     territory.controller === playerName &&
     (Number(territory?.threat || 0) >= 70 || Number(territory?.stability || 0) <= 30)
   ).length;
+  const readyTerritoryOps = territories.filter((territory) => {
+    if (territory.controller === playerName) return false;
+    const ops = [
+      territory.activeOperation,
+      territory.campaign?.operation,
+      territory.intelOperation,
+      territory.hackOperation,
+      territory.sabotageOperation,
+    ].filter(Boolean);
+    return ops.some((operation) => Number(operation?.resolvesAt ?? Infinity) <= now);
+  }).length;
+  const suspiciousSectors = territories.filter((territory) =>
+    territory.controller === playerName &&
+    !territory.enemyCampaign &&
+    Number(territory?.threat || 0) >= 48 &&
+    (Array.isArray(territory.defenseAssets) ? territory.defenseAssets.length : 0) <= 1
+  ).length;
   const activeSectorEvent = save?.activeSectorEvent;
   const maintenanceDebt = Number(save?.maintenanceDebt || 0);
   const activeEvent = save?.activeEvent;
@@ -540,6 +560,8 @@ function AlertCenter({ save, onOpenTab }) {
   }
   if (enemyFronts > 0) addAlert({ tab: 'map', tone: 'danger', title: 'Frentes rivales', text: `${enemyFronts} sector(es) bajo presion rival.`, reason: 'Refuerza o corta suministros para no perderlos.' });
   if (riskySectors > 0) addAlert({ tab: 'map', tone: 'danger', title: 'Sectores inestables', text: `${riskySectors} sector(es) con amenaza alta o baja estabilidad.`, reason: 'La inestabilidad aumenta el riesgo de perdida.' });
+  if (readyTerritoryOps > 0) addAlert({ tab: 'map', tone: 'success', title: 'Operaciones listas', text: `${readyTerritoryOps} operacion(es) territoriales esperando resolucion.`, reason: 'Resolverlas convierte preparacion lenta en avance real.' });
+  if (suspiciousSectors > 0) addAlert({ tab: 'map', tone: 'warn', title: 'Indicios de infiltracion', text: `${suspiciousSectors} sector(es) necesitan defensa oculta.`, reason: 'Instala defensa o activa contrainteligencia antes de que escale.' });
   if (urgentContracts > 0) addAlert({ tab: 'missions', tone: 'danger', title: 'Contratos urgentes', text: `${urgentContracts} pedido(s) cerca de expirar.`, reason: 'Estos contratos desaparecen si se acaba el tiempo.' });
   if (readyContracts > 0) addAlert({ tab: 'missions', tone: 'success', title: 'Recompensas listas', text: `${readyContracts} contrato(s) ya se pueden entregar.`, reason: 'Convierte stock en creditos y XP sin esperar mas.' });
   if (fullCompanies > 0) addAlert({ tab: 'business', tone: 'warn', title: 'Almacen lleno', text: `${fullCompanies} empresa(s) casi al limite.`, reason: 'Recoge produccion para no perder ritmo.' });
@@ -1212,8 +1234,6 @@ export default function App() {
   const {
     save,
     allUsers,
-    equalShare,
-    myAdShare,
     actions,
     jobs,
     currentRegion,
@@ -1236,6 +1256,7 @@ export default function App() {
   const [showPlanetPicker, setShowPlanetPicker] = useState(false);
   const [planetTransit, setPlanetTransit] = useState(null);
   const [planetArrival, setPlanetArrival] = useState(null);
+  const [planetArrivalBanner, setPlanetArrivalBanner] = useState(null);
   const [authModalMode, setAuthModalMode] = useState(null);
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1244,6 +1265,7 @@ export default function App() {
   const [levelMoment, setLevelMoment] = useState(null);
   const previousLevelRef = useRef(Number(save?.player?.level ?? 1));
   const transitTimerRef = useRef(null);
+  const planetBannerTimerRef = useRef(null);
   const topbarRef = useRef(null);
   const playerLevel = Number(save?.player?.level ?? 1);
   const currentPlanetId = save?.player?.currentPlanet || save?.player?.planet;
@@ -1254,7 +1276,7 @@ export default function App() {
   const isEarlyFocusMode = playerLevel < 10;
   const unlockedTabs = useMemo(
     () => (playerLevel < 16 ? getProgressiveUnlockedTabs(save) : null),
-    [playerLevel, save?.stats?.works, save?.companies?.length]
+    [playerLevel, save]
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1273,6 +1295,7 @@ export default function App() {
 
   useEffect(() => () => {
     if (transitTimerRef.current) clearTimeout(transitTimerRef.current);
+    if (planetBannerTimerRef.current) clearTimeout(planetBannerTimerRef.current);
   }, []);
 
   const finishPlanetTransit = (transit) => {
@@ -1280,6 +1303,12 @@ export default function App() {
     transitTimerRef.current = null;
     setPlanetTransit(null);
     setPlanetArrival({ ...transit, arrivedAt: Date.now() });
+    setPlanetArrivalBanner({ ...transit, arrivedAt: Date.now() });
+    if (planetBannerTimerRef.current) clearTimeout(planetBannerTimerRef.current);
+    planetBannerTimerRef.current = setTimeout(() => {
+      setPlanetArrivalBanner(null);
+      planetBannerTimerRef.current = null;
+    }, 12000);
   };
 
   const loadProfile = async (userId) => {
@@ -1399,6 +1428,75 @@ export default function App() {
       window.removeEventListener('resize', syncTopbarHeight);
     };
   }, [authReady, isRemoteLoaded, session, sidebarCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleTopbarPointerGuard = (event) => {
+      const topbar = topbarRef.current;
+      if (!topbar || event.defaultPrevented) return;
+      const tabsBar = topbar.querySelector('.pw-tabs-bar');
+
+      const rect = topbar.getBoundingClientRect();
+      const tabsRect = tabsBar?.getBoundingClientRect();
+      const x = Number(event.clientX ?? 0);
+      const y = Number(event.clientY ?? 0);
+      const insideTopbar =
+        x >= rect.left &&
+        x <= rect.right &&
+        y >= rect.top &&
+        y <= rect.bottom;
+      const insideTabsBar =
+        tabsRect &&
+        x >= tabsRect.left &&
+        x <= tabsRect.right &&
+        y >= tabsRect.top &&
+        y <= tabsRect.bottom;
+
+      if (!insideTopbar) return;
+
+      const directButton = event.target?.closest?.('.pw-topbar button');
+      if (directButton && (!insideTabsBar || directButton.closest('.pw-tabs-bar'))) return;
+
+      const blockers = document
+        .elementsFromPoint(x, y)
+        .filter((element) => element !== document.documentElement && element !== document.body)
+        .filter((element) => {
+          if (!topbar.contains(element)) return true;
+          return insideTabsBar && !element.closest?.('.pw-tabs-bar');
+        });
+      const previousPointerEvents = blockers.map((element) => [
+        element,
+        element.style.pointerEvents,
+      ]);
+
+      blockers.forEach((element) => {
+        element.style.pointerEvents = 'none';
+      });
+
+      const target = document.elementFromPoint(x, y);
+      const topbarButton = insideTabsBar
+        ? target?.closest?.('.pw-tabs-bar button')
+        : target?.closest?.('.pw-topbar button');
+
+      previousPointerEvents.forEach(([element, pointerEvents]) => {
+        element.style.pointerEvents = pointerEvents;
+      });
+
+      if (!topbarButton) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      topbarButton.click();
+    };
+
+    document.addEventListener('pointerdown', handleTopbarPointerGuard, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handleTopbarPointerGuard, true);
+    };
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -1600,6 +1698,14 @@ export default function App() {
         onOpenTab={actions.setTab}
         playerLevel={save.player?.level}
       />
+      <PlanetArrivalBanner
+        arrival={planetArrivalBanner}
+        onClose={() => setPlanetArrivalBanner(null)}
+        onOpenTab={(nextTab) => {
+          setPlanetArrivalBanner(null);
+          actions.setTab(nextTab);
+        }}
+      />
       <LevelUpModal moment={levelMoment} onClose={() => setLevelMoment(null)} />
 
       <div className="pw-topbar" ref={topbarRef}>
@@ -1613,7 +1719,7 @@ export default function App() {
           onSaveProgress={handleOpenSaveProgress}
           onResetGame={handleResetGame}
           onFillEnergyForTest={actions.fillEnergyForTest}
-          onChangePlanet={() => startTransition(() => setShowPlanetPicker(true))}
+          onChangePlanet={() => setShowPlanetPicker(true)}
           onOpenAds={() => actions.setTab('ads')}
           currentRegion={currentRegion}
           isAuthenticated={Boolean(session)}
@@ -1794,6 +1900,7 @@ export default function App() {
                 <ResearchView
                   player={save.player}
                   research={save.research}
+                  hq={save.hq}
                   researchProjects={save.researchProjects}
                   companies={save.companies}
                   inventory={save.inventory}
@@ -1813,7 +1920,7 @@ export default function App() {
                   onUpgrade={actions.buyHqUpgrade}
                   onTriggerHqAdBoost={actions.triggerHqAdBoost}
                   onRepairIntegrity={actions.repairIntegrity}
-                  onOpenPlanetProject={() => startTransition(() => setShowPlanetPicker(true))}
+                  onOpenPlanetProject={() => setShowPlanetPicker(true)}
                 />
               )}
 

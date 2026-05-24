@@ -1,4 +1,4 @@
-﻿-- AstraCorp - misiones y contratos online
+-- AstraCorp - misiones y contratos online
 -- Ejecutar preferiblemente el archivo *_BLOCKS.sql por bloques en Supabase SQL Editor.
 
 create table if not exists public.astracorp_mission_contract_events (

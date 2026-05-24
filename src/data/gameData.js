@@ -164,6 +164,7 @@ export const DEFAULT_STATS = {
   battles: 0,
   conquests: 0,
   buys: 0,
+  sells: 0,
   contracts: 0,
   adsViewedToday: 0,
   adsViewed: 0,

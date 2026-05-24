@@ -350,7 +350,7 @@ export default function CompaniesShopView({ save, actions }) {
         if (a.requiredLevel !== b.requiredLevel) return a.requiredLevel - b.requiredLevel;
         return a.buildCost - b.buildCost;
       });
-  }, [ownedCountByType, player.credits, player.level, inventory]);
+  }, [ownedCountByType, player.credits, player.level, inventory, save]);
 
   if (!shopItems.length) {
     return <div style={styles.empty}>No hay empresas disponibles.</div>;
