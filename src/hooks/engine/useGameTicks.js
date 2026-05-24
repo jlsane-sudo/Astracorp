@@ -669,8 +669,9 @@ export function useGameTicks({
     setSave((prev) => syncTutorialState(prev));
   }, [
     isRemoteLoaded,
-    save.stats?.works, save.stats?.buys,
+    save.stats?.works, save.stats?.sells,
     save.companies?.length, save.rewardAdsToday,
+    save.player?.level, save.hq, save.researchProjects?.active, save.research,
     setSave,
   ]);
 

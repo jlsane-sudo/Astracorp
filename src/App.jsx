@@ -182,7 +182,7 @@ function EarlyGuideBanner({
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.55, color: '#dbe7f5', maxWidth: 880 }}>
           {tutorialStep?.desc ||
-            'Tu prioridad ahora es entender el bucle basico: trabajar, construir una primera empresa y subir al nivel 2 antes de abrir mas sistemas.'}
+            'Tu prioridad ahora es entender el bucle basico: trabajar, construir una primera empresa, vender tu primera produccion y solo despues abrir mas sistemas.'}
         </div>
       </div>
 
@@ -222,8 +222,8 @@ function EarlyGuideBanner({
           lineHeight: 1.5,
         }}
       >
-        Orden recomendado: <strong>Trabajos</strong> {'->'} <strong>Mercado</strong> {'->'}{' '}
-        <strong>Primera empresa</strong> {'->'} <strong>Nivel 2</strong>. Politica y sistemas avanzados pueden esperar.
+        Orden recomendado: <strong>Trabajos</strong> {'->'} <strong>Primera empresa</strong> {'->'}{' '}
+        <strong>Mercado</strong> {'->'} <strong>Nivel 2</strong> {'->'} <strong>Base</strong>. Politica y sistemas avanzados pueden esperar.
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -271,10 +271,15 @@ const getEarlyUnlockedTabs = (save = {}) => {
   const works = Number(save?.stats?.works ?? 0);
   const companies = Array.isArray(save?.companies) ? save.companies.length : 0;
   const level = Number(save?.player?.level ?? 1);
-  const tabs = ['home', 'work', 'market'];
+  const hasHqUpgrade = Object.values(save?.hq || {}).some((upgradeLevel) => Number(upgradeLevel ?? 0) >= 1);
+  const tabs = ['home', 'work'];
 
-  if (works > 0 || companies > 0 || level >= 2) tabs.push('business');
-  if (level >= 4) tabs.push('missions');
+  if (works >= 1) tabs.push('business');
+  if (companies >= 1) tabs.push('market');
+  if (level >= 2 || works >= 2) tabs.push('hq');
+  if (level >= 3 || hasHqUpgrade) tabs.push('research');
+  if (level >= 3) tabs.push('missions');
+  if (companies >= 2 || Number(save?.maintenanceDebt ?? 0) > 0) tabs.push('balance');
 
   return tabs;
 };
@@ -283,13 +288,11 @@ const getProgressiveUnlockedTabs = (save = {}) => {
   const level = Number(save?.player?.level ?? 1);
   const tabs = getEarlyUnlockedTabs(save);
 
-  if (level >= 10) tabs.push('hq');
-  if (level >= 11) tabs.push('research');
-  if (level >= 12) tabs.push('projects');
-  if (level >= 13) tabs.push('balance');
-  if (level >= 14) tabs.push('map');
-  if (level >= 15) tabs.push('politics');
-  if (level >= 16) tabs.push('ads', 'players', 'chat');
+  if (level >= 4) tabs.push('projects');
+  if (level >= 4 && Array.isArray(save?.companies) && save.companies.length >= 2) tabs.push('map');
+  if (level >= 5) tabs.push('politics');
+  if (level >= 3 || Number(save?.player?.energy ?? 0) < 35) tabs.push('ads');
+  if (level >= 5) tabs.push('players', 'chat');
 
   return [...new Set(tabs)];
 };

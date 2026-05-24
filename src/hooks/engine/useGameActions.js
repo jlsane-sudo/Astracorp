@@ -1613,6 +1613,7 @@ export function useGameActions({ save, setSave, user, persistRemoteSave, updateM
           player:    { ...spendEnergy(live.player, 'sellItem', live.research, live.hq), credits: round2(Number(live.player?.credits ?? 0) + total) },
           inventory: { ...live.inventory, [key]: round2(Math.max(0, Number(live.inventory?.[key] ?? 0) - quote.amount)) },
           market:    { ...live.market, [key]: nextItem },
+          stats:     { ...live.stats, sells: Number(live.stats?.sells ?? 0) + quote.amount },
           activeEventStats: eventAffected
             ? {
                 ...(live.activeEventStats || { id: live.activeEvent?.id, title: live.activeEvent?.title }),

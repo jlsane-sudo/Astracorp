@@ -2171,8 +2171,11 @@ export const isTutorialStepComplete = (stepId, saveData) => {
   switch (stepId) {
     case 'work_once':    return Number(saveData?.stats?.works   ?? 0) >= 1;
     case 'build_company':return Array.isArray(saveData?.companies) && saveData.companies.length >= 1;
+    case 'sell_once':    return Number(saveData?.stats?.sells   ?? 0) >= 1;
     case 'level_two':   return Number(saveData?.player?.level   ?? 1) >= 2;
-    case 'buy_once':    return Number(saveData?.stats?.buys     ?? 0) >= 1;
+    case 'open_hq':     return Object.values(saveData?.hq || {}).some((level) => Number(level ?? 0) >= 1);
+    case 'start_research': return Boolean(saveData?.researchProjects?.active) ||
+      Object.values(saveData?.research || {}).some((level) => Number(level ?? 0) >= 1);
     default:            return false;
   }
 };
